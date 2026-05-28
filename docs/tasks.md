@@ -25,6 +25,8 @@
 
 ## Next
 
+- [x] Refrescar datos Proxmox desde `proxmox-thermals` cada 30s si el snapshot esta viejo.
+- [x] Renderizar tabla Proxmox thermals desde `/api/noc/current`.
 - [ ] Convertir alertas/notificaciones de la preview a render dinamico completo.
 - [ ] Crear servicio systemd para API central.
 - [ ] Definir contrato interno del agente `JM22W11`.

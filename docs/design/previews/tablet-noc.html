@@ -896,7 +896,7 @@
           <div class="section-title"><span>Thermals</span><span>top devices</span></div>
           <table class="table">
             <thead><tr><th>Dev</th><th>Temp</th><th>Use</th><th>State</th></tr></thead>
-            <tbody>
+            <tbody data-proxmox-thermals>
               <tr><td class="name">nvme1n1</td><td class="is-crit">85°</td><td>10%</td><td class="is-crit">crit</td></tr>
               <tr><td class="name">nvme0n1</td><td class="is-crit">82°</td><td>-</td><td class="is-crit">crit</td></tr>
               <tr><td class="name">sdb</td><td class="is-ok">26°</td><td>68%</td><td class="is-ok">ok</td></tr>
@@ -1001,6 +1001,11 @@ function formatPercent(value) {
   return String(Math.round(value));
 }
 
+function formatDecimal(value, digits = 0) {
+  if (typeof value !== "number") return "—";
+  return value.toFixed(digits);
+}
+
 function formatBytes(value) {
   if (typeof value !== "number") return "—";
   const gib = value / 1024 / 1024 / 1024;
@@ -1073,6 +1078,43 @@ function applyBars(payload) {
   });
 }
 
+function proxmoxThermalValue(item) {
+  if (typeof item.sensor2_c === "number") return item.sensor2_c;
+  if (typeof item.temperature_c === "number") return item.temperature_c;
+  return null;
+}
+
+function thermalDisplayName(item) {
+  if (item.id?.startsWith("cpu_")) return item.label || item.id;
+  return item.id || item.label || "unknown";
+}
+
+function renderProxmoxThermals(payload) {
+  const tbody = document.querySelector("[data-proxmox-thermals]");
+  if (!tbody) return;
+
+  const rows = (payload.proxmox?.temperatures || [])
+    .filter((item) => proxmoxThermalValue(item) !== null)
+    .sort((a, b) => proxmoxThermalValue(b) - proxmoxThermalValue(a))
+    .slice(0, 6);
+
+  if (!rows.length) return;
+
+  tbody.innerHTML = rows.map((item) => {
+    const state = item.state || "unknown";
+    const temp = proxmoxThermalValue(item);
+    const used = typeof item.used_percent === "number" ? `${formatDecimal(item.used_percent, 0)}%` : "—";
+    return `
+      <tr>
+        <td class="name">${thermalDisplayName(item)}</td>
+        <td class="is-${state}">${formatDecimal(temp, 0)}°</td>
+        <td>${used}</td>
+        <td class="is-${state}">${state}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 async function refreshNoc() {
   if (!location.protocol.startsWith("http")) return;
   try {
@@ -1081,6 +1123,7 @@ async function refreshNoc() {
     const payload = await response.json();
     document.querySelectorAll("[data-bind]").forEach((element) => applyBinding(element, payload));
     applyBars(payload);
+    renderProxmoxThermals(payload);
   } catch {
     return;
   }

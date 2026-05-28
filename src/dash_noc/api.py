@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import threading
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +12,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 from dash_noc import __version__
+
+
+PROXMOX_REFRESH_LOCK = threading.Lock()
 
 
 def utc_now() -> datetime:
@@ -39,6 +44,21 @@ def proxmox_current_json_path() -> Path:
     if configured:
         return Path(configured)
     return Path("/projects/proxmox-thermals/data/current.json")
+
+
+def proxmox_collect_script_path() -> Path:
+    configured = os.environ.get("DASH_NOC_PROXMOX_COLLECT_SCRIPT")
+    if configured:
+        return Path(configured)
+    return Path("/projects/proxmox-thermals/scripts/collect_once.py")
+
+
+def proxmox_max_age_seconds() -> int:
+    configured = os.environ.get("DASH_NOC_PROXMOX_MAX_AGE", "30")
+    try:
+        return max(0, int(configured))
+    except ValueError:
+        return 30
 
 
 def parse_iso_z(value: str) -> datetime | None:
@@ -89,6 +109,56 @@ def health_payload() -> dict[str, Any]:
         "version": __version__,
         "time": iso_z(utc_now()),
     }
+
+
+def load_proxmox_current_json() -> dict[str, Any] | None:
+    path = proxmox_current_json_path()
+    if not path.exists():
+        return None
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def refresh_proxmox_current_json(timeout_seconds: int = 25) -> tuple[bool, str | None]:
+    script = proxmox_collect_script_path()
+    if not script.exists():
+        return False, "collector script not found"
+
+    if not PROXMOX_REFRESH_LOCK.acquire(blocking=False):
+        return False, "collector busy"
+
+    try:
+        env = os.environ.copy()
+        env["PROXMOX_THERMALS_DATA_DIR"] = str(proxmox_current_json_path().parent)
+        subprocess.run(
+            ["/usr/bin/python3", str(script)],
+            check=True,
+            timeout=timeout_seconds,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True, None
+    except subprocess.TimeoutExpired:
+        return False, "collector timeout"
+    except subprocess.CalledProcessError:
+        return False, "collector failed"
+    finally:
+        PROXMOX_REFRESH_LOCK.release()
+
+
+def ensure_fresh_proxmox_snapshot(now: datetime) -> tuple[dict[str, Any] | None, str | None]:
+    raw = load_proxmox_current_json()
+    age = age_seconds((raw or {}).get("timestamp"), now) if raw else None
+    refresh_enabled = os.environ.get("DASH_NOC_PROXMOX_REFRESH", "1") != "0"
+    if refresh_enabled and (age is None or age > proxmox_max_age_seconds()):
+        refreshed, reason = refresh_proxmox_current_json()
+        fresh_raw = load_proxmox_current_json()
+        return fresh_raw or raw, None if refreshed else reason
+    return raw, None
 
 
 def mock_proxmox(now: datetime) -> dict[str, Any]:
@@ -162,13 +232,8 @@ def mock_proxmox(now: datetime) -> dict[str, Any]:
 
 
 def proxmox_from_current_json(now: datetime) -> dict[str, Any] | None:
-    path = proxmox_current_json_path()
-    if not path.exists():
-        return None
-
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    raw, refresh_warning = ensure_fresh_proxmox_snapshot(now)
+    if raw is None:
         return None
 
     sampled_at = raw.get("timestamp")
@@ -178,6 +243,7 @@ def proxmox_from_current_json(now: datetime) -> dict[str, Any] | None:
     load = raw.get("load") or {}
     storages = raw.get("storages") or {}
     disks = raw.get("disks") or {}
+    filesystems = raw.get("filesystems") or {}
     temperatures_raw = raw.get("temperatures") or {}
 
     temperature_items: list[dict[str, Any]] = []
@@ -206,12 +272,22 @@ def proxmox_from_current_json(now: datetime) -> dict[str, Any] | None:
         temp = disk.get("temperature_c")
         sensor2 = disk.get("sensor2_c")
         effective = sensor2 if isinstance(sensor2, (int, float)) else temp
+        disk_used_percent = None
+        for mountpoint in disk.get("mountpoints") or []:
+            fs = filesystems.get(mountpoint)
+            if fs and isinstance(fs.get("used_percent"), (int, float)):
+                candidate = float(fs["used_percent"])
+                disk_used_percent = candidate if disk_used_percent is None else max(disk_used_percent, candidate)
         item = {
             "id": disk.get("linux_name") or serial,
             "label": disk.get("role") or disk.get("linux_name") or serial,
             "device": disk.get("device"),
             "temperature_c": temp,
             "sensor2_c": sensor2,
+            "used_percent": disk_used_percent,
+            "mountpoints": disk.get("mountpoints") or [],
+            "model": disk.get("model"),
+            "serial": serial,
             "state": temp_state(effective),
         }
         temperature_items.append(item)
@@ -243,7 +319,7 @@ def proxmox_from_current_json(now: datetime) -> dict[str, Any] | None:
     if age is None or age > 300:
         status = "stale"
 
-    return {
+    payload = {
         "status": status,
         "source": "proxmox-thermals-file",
         "sampled_at": sampled_at,
@@ -265,6 +341,9 @@ def proxmox_from_current_json(now: datetime) -> dict[str, Any] | None:
         "vms": raw.get("vms_running") or [],
         "lxc": [],
     }
+    if refresh_warning:
+        payload["refresh_warning"] = refresh_warning
+    return payload
 
 
 def proxmox_payload(now: datetime) -> dict[str, Any]:

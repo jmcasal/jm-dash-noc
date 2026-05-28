@@ -39,6 +39,9 @@ Variables utiles:
 - `DASH_NOC_PORT`: puerto HTTP. Por defecto `8124`.
 - `DASH_NOC_FRONTEND_HTML`: HTML servido en `/`. Por defecto `docs/design/previews/tablet-noc.html`.
 - `DASH_NOC_PROXMOX_CURRENT_JSON`: snapshot local de `proxmox-thermals`. Por defecto `/projects/proxmox-thermals/data/current.json`.
+- `DASH_NOC_PROXMOX_MAX_AGE`: edad maxima del snapshot Proxmox antes de refrescar. Por defecto `30`.
+- `DASH_NOC_PROXMOX_REFRESH`: `1` refresca con el collector, `0` solo lee el JSON existente. Por defecto `1`.
+- `DASH_NOC_PROXMOX_COLLECT_SCRIPT`: script collector. Por defecto `/projects/proxmox-thermals/scripts/collect_once.py`.
 
 Endpoints iniciales:
 
