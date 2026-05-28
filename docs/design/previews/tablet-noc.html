@@ -768,12 +768,12 @@
   </section>
 
   <section class="summary">
-    <div class="kpi panel"><span class="kpi-label">Proxmox</span><span class="kpi-val is-warn">WARN</span><span class="kpi-foot">thermal + ram</span></div>
-    <div class="kpi panel"><span class="kpi-label">JM22W11</span><span class="kpi-val is-ok">UP</span><span class="kpi-foot">agent reachable</span></div>
-    <div class="kpi panel"><span class="kpi-label">VM/LXC</span><span class="kpi-val">18</span><span class="kpi-foot">planned from PVE</span></div>
-    <div class="kpi panel"><span class="kpi-label">Max Temp</span><span class="kpi-val is-crit">85<small>°C</small></span><span class="kpi-foot">nvme1n1</span></div>
-    <div class="kpi panel"><span class="kpi-label">Alerts</span><span class="kpi-val is-crit">3</span><span class="kpi-foot">1 crit · 2 warn</span></div>
-    <div class="kpi panel"><span class="kpi-label">Inbox</span><span class="kpi-val is-warn">5</span><span class="kpi-foot">important only</span></div>
+    <div class="kpi panel"><span class="kpi-label">Proxmox</span><span class="kpi-val is-warn" data-bind="proxmox.status">WARN</span><span class="kpi-foot" data-bind="proxmox.source">thermal + ram</span></div>
+    <div class="kpi panel"><span class="kpi-label">JM22W11</span><span class="kpi-val is-ok" data-bind="jm22w11.status">UP</span><span class="kpi-foot" data-bind="jm22w11.source">agent reachable</span></div>
+    <div class="kpi panel"><span class="kpi-label">VM/LXC</span><span class="kpi-val" data-bind="proxmox.vm_lxc_count">18</span><span class="kpi-foot">from PVE collector</span></div>
+    <div class="kpi panel"><span class="kpi-label">Max Temp</span><span class="kpi-val is-crit"><span data-bind="proxmox.max_temperature_c">85</span><small>°C</small></span><span class="kpi-foot" data-bind="proxmox.max_temperature_label">nvme1n1</span></div>
+    <div class="kpi panel"><span class="kpi-label">Alerts</span><span class="kpi-val is-crit" data-bind="overall.active_alerts">3</span><span class="kpi-foot" data-bind="overall.status">1 crit · 2 warn</span></div>
+    <div class="kpi panel"><span class="kpi-label">Inbox</span><span class="kpi-val is-warn" data-bind="overall.important_notifications">5</span><span class="kpi-foot">important only</span></div>
   </section>
 
   <section class="main">
@@ -790,10 +790,10 @@
         <div class="section">
           <div class="section-title"><span>Host metrics</span><span>real sources planned</span></div>
           <div class="metrics">
-            <div class="metric"><div class="metric-label">CPU</div><div class="metric-value">21<small>%</small></div><div class="bar"><i style="width:21%"></i></div><div class="metric-foot">load 2.3 / 2.6 / 2.4</div></div>
-            <div class="metric"><div class="metric-label">RAM</div><div class="metric-value is-warn">78<small>%</small></div><div class="bar"><i class="warn" style="width:78%"></i></div><div class="metric-foot">97.4 / 125.6 GB</div></div>
-            <div class="metric"><div class="metric-label">Storage</div><div class="metric-value">42<small>%</small></div><div class="bar"><i style="width:42%"></i></div><div class="metric-foot">root + local-lvm</div></div>
-            <div class="metric"><div class="metric-label">CPU pkg</div><div class="metric-value">46<small>°C</small></div><div class="bar"><i style="width:46%"></i></div><div class="metric-foot">primary package</div></div>
+            <div class="metric"><div class="metric-label">CPU</div><div class="metric-value"><span data-bind="proxmox.cpu_used_percent">21</span><small>%</small></div><div class="bar"><i data-bar="proxmox.cpu_used_percent" style="width:21%"></i></div><div class="metric-foot" data-bind="proxmox.load_average">load 2.3 / 2.6 / 2.4</div></div>
+            <div class="metric"><div class="metric-label">RAM</div><div class="metric-value is-warn"><span data-bind="proxmox.memory_used_percent">78</span><small>%</small></div><div class="bar"><i class="warn" data-bar="proxmox.memory_used_percent" style="width:78%"></i></div><div class="metric-foot" data-bind="proxmox.memory_bytes">97.4 / 125.6 GB</div></div>
+            <div class="metric"><div class="metric-label">Storage</div><div class="metric-value"><span data-bind="proxmox.storage_used_percent">42</span><small>%</small></div><div class="bar"><i data-bar="proxmox.storage_used_percent" style="width:42%"></i></div><div class="metric-foot">max storage use</div></div>
+            <div class="metric"><div class="metric-label">CPU pkg</div><div class="metric-value"><span data-bind="proxmox.cpu_package_c">46</span><small>°C</small></div><div class="bar"><i data-bar="proxmox.cpu_package_c" style="width:46%"></i></div><div class="metric-foot">primary package</div></div>
           </div>
         </div>
         <div class="section">
@@ -824,10 +824,10 @@
         <div class="section">
           <div class="section-title"><span>Workstation</span><span>/status</span></div>
           <div class="metrics">
-            <div class="metric"><div class="metric-label">CPU</div><div class="metric-value">18<small>%</small></div><div class="bar"><i style="width:18%"></i></div><div class="metric-foot">source: agent</div></div>
-            <div class="metric"><div class="metric-label">RAM</div><div class="metric-value">51<small>%</small></div><div class="bar"><i style="width:51%"></i></div><div class="metric-foot">16.3 / 32 GB</div></div>
-            <div class="metric"><div class="metric-label">Disk</div><div class="metric-value">63<small>%</small></div><div class="bar"><i style="width:63%"></i></div><div class="metric-foot">system volume</div></div>
-            <div class="metric"><div class="metric-label">Uptime</div><div class="metric-value">4<small>d</small></div><div class="bar"><i style="width:38%"></i></div><div class="metric-foot">11h 26m</div></div>
+            <div class="metric"><div class="metric-label">CPU</div><div class="metric-value"><span data-bind="jm22w11.cpu_used_percent">18</span><small>%</small></div><div class="bar"><i data-bar="jm22w11.cpu_used_percent" style="width:18%"></i></div><div class="metric-foot">source: agent</div></div>
+            <div class="metric"><div class="metric-label">RAM</div><div class="metric-value"><span data-bind="jm22w11.memory_used_percent">51</span><small>%</small></div><div class="bar"><i data-bar="jm22w11.memory_used_percent" style="width:51%"></i></div><div class="metric-foot" data-bind="jm22w11.memory_bytes">16.3 / 32 GB</div></div>
+            <div class="metric"><div class="metric-label">Disk</div><div class="metric-value"><span data-bind="jm22w11.disk_used_percent">63</span><small>%</small></div><div class="bar"><i data-bar="jm22w11.disk_used_percent" style="width:63%"></i></div><div class="metric-foot">system volume</div></div>
+            <div class="metric"><div class="metric-label">Uptime</div><div class="metric-value"><span data-bind="jm22w11.uptime_days">4</span><small>d</small></div><div class="bar"><i style="width:38%"></i></div><div class="metric-foot" data-bind="jm22w11.uptime_short">11h 26m</div></div>
           </div>
         </div>
         <div class="section">
@@ -896,8 +896,104 @@ function tickClock() {
   document.getElementById("ck-dow").textContent = `D${dayOfYear(now)} W${pad(isoWeek(now))}`;
 }
 
+function getPath(payload, path) {
+  return path.split(".").reduce((value, key) => value && value[key], payload);
+}
+
+function formatPercent(value) {
+  if (typeof value !== "number") return "—";
+  return String(Math.round(value));
+}
+
+function formatBytes(value) {
+  if (typeof value !== "number") return "—";
+  const gib = value / 1024 / 1024 / 1024;
+  if (gib >= 1024) return `${(gib / 1024).toFixed(1)} TB`;
+  return `${gib.toFixed(1)} GB`;
+}
+
+function statusText(value) {
+  if (!value) return "UNKNOWN";
+  return String(value).toUpperCase();
+}
+
+function updateStatusClass(element, status) {
+  element.classList.remove("is-ok", "is-warn", "is-crit", "is-info");
+  if (status === "ok") element.classList.add("is-ok");
+  else if (status === "warn" || status === "stale") element.classList.add("is-warn");
+  else if (status === "crit" || status === "down") element.classList.add("is-crit");
+  else element.classList.add("is-info");
+}
+
+function applyBinding(element, payload) {
+  const key = element.dataset.bind;
+  const proxmoxSummary = payload.proxmox?.summary || {};
+  const jmDisk = payload.jm22w11?.disks?.[0] || {};
+  const values = {
+    "overall.status": statusText(payload.overall?.status),
+    "overall.active_alerts": payload.overall?.active_alerts,
+    "overall.important_notifications": payload.overall?.important_notifications,
+    "proxmox.status": statusText(payload.proxmox?.status),
+    "proxmox.source": payload.proxmox?.source || "unknown",
+    "proxmox.vm_lxc_count": (proxmoxSummary.vm_count || 0) + (proxmoxSummary.lxc_count || 0),
+    "proxmox.max_temperature_c": formatPercent(proxmoxSummary.max_temperature_c),
+    "proxmox.max_temperature_label": proxmoxSummary.max_temperature_label || "unknown",
+    "proxmox.cpu_used_percent": formatPercent(proxmoxSummary.cpu_used_percent),
+    "proxmox.memory_used_percent": formatPercent(proxmoxSummary.memory_used_percent),
+    "proxmox.storage_used_percent": formatPercent(proxmoxSummary.storage_used_percent),
+    "proxmox.cpu_package_c": formatPercent((payload.proxmox?.temperatures || []).find(item => item.id === "cpu_package_c")?.temperature_c),
+    "proxmox.load_average": Array.isArray(proxmoxSummary.load_average) ? `load ${proxmoxSummary.load_average.map(value => Number(value || 0).toFixed(1)).join(" / ")}` : "load unknown",
+    "proxmox.memory_bytes": `${formatBytes(proxmoxSummary.memory_used_bytes)} / ${formatBytes(proxmoxSummary.memory_total_bytes)}`,
+    "jm22w11.status": statusText(payload.jm22w11?.status),
+    "jm22w11.source": payload.jm22w11?.source || "unknown",
+    "jm22w11.cpu_used_percent": formatPercent(payload.jm22w11?.cpu_used_percent),
+    "jm22w11.memory_used_percent": formatPercent(payload.jm22w11?.memory_used_percent),
+    "jm22w11.memory_bytes": `${formatBytes(payload.jm22w11?.memory_used_bytes)} / ${formatBytes(payload.jm22w11?.memory_total_bytes)}`,
+    "jm22w11.disk_used_percent": formatPercent(jmDisk.used_percent),
+    "jm22w11.uptime_days": Math.floor((payload.jm22w11?.uptime_seconds || 0) / 86400),
+    "jm22w11.uptime_short": `${Math.floor(((payload.jm22w11?.uptime_seconds || 0) % 86400) / 3600)}h ${Math.floor(((payload.jm22w11?.uptime_seconds || 0) % 3600) / 60)}m`
+  };
+
+  element.textContent = values[key] ?? getPath(payload, key) ?? element.textContent;
+  if (key.endsWith(".status")) {
+    updateStatusClass(element, key.startsWith("proxmox") ? payload.proxmox?.status : payload.jm22w11?.status);
+  }
+}
+
+function applyBars(payload) {
+  const values = {
+    "proxmox.cpu_used_percent": payload.proxmox?.summary?.cpu_used_percent,
+    "proxmox.memory_used_percent": payload.proxmox?.summary?.memory_used_percent,
+    "proxmox.storage_used_percent": payload.proxmox?.summary?.storage_used_percent,
+    "proxmox.cpu_package_c": (payload.proxmox?.temperatures || []).find(item => item.id === "cpu_package_c")?.temperature_c,
+    "jm22w11.cpu_used_percent": payload.jm22w11?.cpu_used_percent,
+    "jm22w11.memory_used_percent": payload.jm22w11?.memory_used_percent,
+    "jm22w11.disk_used_percent": payload.jm22w11?.disks?.[0]?.used_percent
+  };
+
+  document.querySelectorAll("[data-bar]").forEach((bar) => {
+    const value = values[bar.dataset.bar];
+    if (typeof value === "number") bar.style.width = `${Math.max(0, Math.min(100, value))}%`;
+  });
+}
+
+async function refreshNoc() {
+  if (!location.protocol.startsWith("http")) return;
+  try {
+    const response = await fetch("/api/noc/current", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    document.querySelectorAll("[data-bind]").forEach((element) => applyBinding(element, payload));
+    applyBars(payload);
+  } catch {
+    return;
+  }
+}
+
 tickClock();
 setInterval(tickClock, 1000);
+refreshNoc();
+setInterval(refreshNoc, 30000);
 </script>
 </body>
 </html>

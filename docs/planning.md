@@ -14,8 +14,9 @@ Entregables:
 - overview
 - ADRs iniciales
 - backlog de tareas
+- contratos JSON iniciales
 
-Estado: en curso.
+Estado: cerrada salvo confirmacion de resolucion real de la tablet.
 
 ## Fase 1: Prototipo estatico tablet
 
@@ -31,6 +32,8 @@ Entregables:
 - capturas renderizadas
 - decision de layout base
 
+Estado: preview inicial creada asumiendo `1280x800` en horizontal.
+
 ## Fase 2: API central en Proxmox
 
 Objetivo:
@@ -45,6 +48,15 @@ Endpoints previstos:
 - `/api/jm22w11/status`
 - `/api/notifications/important`
 - `/health`
+
+Stack inicial:
+
+- Python 3.11+
+- libreria estandar HTTP/JSON
+- frontend estatico servido por el proceso central
+
+Estado: esqueleto mock creado con endpoints contractuales iniciales.
+El endpoint Proxmox ya puede leer `/projects/proxmox-thermals/data/current.json` y cae a mock si no existe.
 
 ## Fase 3: Collector Proxmox
 
@@ -95,4 +107,3 @@ Objetivo:
 - refresco automatico robusto
 - estados de error visibles
 - no quemar CPU ni bateria de la tablet
-

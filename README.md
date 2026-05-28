@@ -19,8 +19,35 @@ Crear una pantalla fija, legible y util para supervision diaria:
 - [Overview](docs/overview.md)
 - [Planning](docs/planning.md)
 - [Tasks](docs/tasks.md)
+- [API contracts](docs/api-contracts.md)
 - [ADRs](docs/adr/)
 - [Design previews](docs/design/previews/)
+
+## Desarrollo local
+
+Arrancar la API central mock:
+
+```bash
+PYTHONPATH=src scripts/run_api.py
+```
+
+Por defecto escucha en `127.0.0.1:8124`.
+
+Variables utiles:
+
+- `DASH_NOC_BIND`: bind HTTP. Por defecto `127.0.0.1`.
+- `DASH_NOC_PORT`: puerto HTTP. Por defecto `8124`.
+- `DASH_NOC_FRONTEND_HTML`: HTML servido en `/`. Por defecto `docs/design/previews/tablet-noc.html`.
+- `DASH_NOC_PROXMOX_CURRENT_JSON`: snapshot local de `proxmox-thermals`. Por defecto `/projects/proxmox-thermals/data/current.json`.
+
+Endpoints iniciales:
+
+- `GET /`
+- `GET /health`
+- `GET /api/noc/current`
+- `GET /api/proxmox/status`
+- `GET /api/jm22w11/status`
+- `GET /api/notifications/important`
 
 ## Principio de organizacion
 
@@ -28,4 +55,3 @@ Crear una pantalla fija, legible y util para supervision diaria:
 - `docs/`: documentacion del proyecto.
 - `docs/adr/`: decisiones de arquitectura.
 - `docs/tasks/` o `docs/tasks.md`: seguimiento de trabajo.
-

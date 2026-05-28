@@ -1,0 +1,18 @@
+[project]
+name = "dash-noc"
+version = "0.1.0"
+description = "Tablet-first NOC dashboard for a homelab"
+requires-python = ">=3.11"
+
+[project.scripts]
+dash-noc-api = "dash_noc.api:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
