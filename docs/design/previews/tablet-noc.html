@@ -61,8 +61,8 @@
 
   .screen {
     width: min(100vw, 1280px);
-    height: min(100vh, 800px);
-    min-height: 720px;
+    height: min(100dvh, 800px);
+    min-height: 0;
     margin: 0 auto;
     padding: 10px;
     display: grid;
@@ -720,11 +720,109 @@
   }
 
   @media (max-width: 900px) {
-    body { overflow: auto; }
     .screen {
       width: 100%;
+      height: 100dvh;
+      padding: 7px;
+      gap: 6px;
+      grid-template-columns: minmax(0, 1fr) 270px;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-areas:
+        "header clock"
+        "summary clock"
+        "main side";
+    }
+    .topbar {
+      min-height: 50px;
+      padding: 8px 9px;
+      gap: 8px;
+    }
+    .mark {
+      width: 30px;
+      height: 30px;
+      font-size: 10px;
+    }
+    .title h1 { font-size: 16px; }
+    .meta { font-size: 8px; }
+    .live { padding: 4px 7px; font-size: 8px; }
+    .clock {
+      min-height: 144px;
+      padding: 8px 10px;
+    }
+    .clock-time { font-size: 48px; }
+    .clock-time .secs { font-size: 20px; margin-left: 5px; }
+    .clock-bottom { font-size: 9px; }
+    .clock-bottom b { font-size: 10px; }
+    .summary {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+    .kpi {
+      min-height: 52px;
+      padding: 5px 7px;
+    }
+    .kpi-label,
+    .metric-label,
+    .section-title,
+    .panel-hd {
+      font-size: 8px;
+      letter-spacing: 0.11em;
+    }
+    .kpi-val { font-size: 16px; }
+    .kpi-foot,
+    .metric-foot,
+    .host-meta,
+    .mini-row span,
+    .message {
+      font-size: 8px;
+    }
+    .main { gap: 6px; }
+    .side {
+      gap: 6px;
+      grid-template-rows: minmax(0, 1fr) 150px;
+    }
+    .host-hd { padding: 5px 8px; gap: 7px; }
+    .host-icon {
+      width: 22px;
+      height: 22px;
+      font-size: 10px;
+    }
+    .host-name { font-size: 12px; }
+    .host-name span,
+    .pill,
+    .table th,
+    .table td,
+    .level,
+    .when,
+    .mail b,
+    .mail span {
+      font-size: 8px;
+    }
+    .host-body { grid-template-columns: 1fr; }
+    .section { padding: 6px 8px; }
+    .metrics { gap: 4px; }
+    .metric { padding: 5px 6px; }
+    .metric-value { font-size: 14px; }
+    .table th,
+    .table td {
+      padding: 3px 5px;
+    }
+    .alerts-list,
+    .mail-list {
+      gap: 4px;
+      padding: 6px 8px 8px;
+    }
+    .alert,
+    .mail {
+      gap: 6px;
+      padding: 5px 6px;
+    }
+  }
+
+  @media (max-width: 620px) {
+    body { overflow: auto; }
+    .screen {
       height: auto;
-      min-height: 0;
       grid-template-columns: 1fr;
       grid-template-rows: auto;
       grid-template-areas:
@@ -737,8 +835,6 @@
     .summary { grid-template-columns: repeat(2, 1fr); }
     .main,
     .side { grid-template-rows: auto; }
-    .host-body { grid-template-columns: 1fr; }
-    .clock-time { font-size: 60px; }
   }
 </style>
 </head>
