@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Proxmox Thermals — Dual Host</title>
+<meta name="viewport" content="width=1920" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg:            #07100c;
+    --bg-grad:       radial-gradient(1200px 800px at 20% -10%, #0e1e17 0%, #07100c 55%, #050a08 100%);
+    --panel:         #0d1612;
+    --panel-2:       #111c17;
+    --panel-3:       #16241d;
+    --border:        #1a2a23;
+    --border-strong: #233a30;
+    --text:          #d8e6df;
+    --text-dim:      #8aa097;
+    --text-mute:     #4d6259;
+    --text-faint:    #344a40;
+    --accent:        #4ade80;          /* ok / cool */
+    --accent-dim:    #2a6f57;
+    --accent-glow:   rgba(74, 222, 128, 0.18);
+    --warn:          #f5b84a;          /* warm */
+    --warn-glow:     rgba(245, 184, 74, 0.18);
+    --crit:          #ff6b4a;          /* hot */
+    --crit-glow:     rgba(255, 107, 74, 0.20);
+    --info:          #5dd4ff;          /* clock / info */
+    --info-glow:     rgba(93, 212, 255, 0.14);
+    --mono:          "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:          "Space Grotesk", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); }
+  body {
+    font-family: var(--sans);
+    color: var(--text);
+    background: var(--bg-grad);
+    min-height: 100vh;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* page is a fixed 1920 canvas, header is 100% × 20vh-ish */
+  .layout {
+    width: 1920px;
+    margin: 0 auto;
+    padding: 18px 22px 22px;
+    display: grid;
+    grid-template-columns: 60% 40%;
+    grid-template-rows: 200px auto auto auto;
+    grid-template-areas:
+      "header  clock"
+      "machA   machA"
+      "machB   machB"
+      "history history";
+    gap: 14px;
+  }
+
+  /* ---- HEADER (title strip) ----------------------------------- */
+  .header {
+    grid-area: header;
+    background:
+      linear-gradient(180deg, rgba(74,222,128,0.04), transparent 80%),
+      var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 26px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto 1fr;
+    column-gap: 22px;
+    row-gap: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 79px, rgba(74,222,128,0.025) 79px 80px);
+    pointer-events: none;
+  }
+  .brand-mark {
+    grid-row: 1 / span 3;
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: linear-gradient(155deg, var(--accent), #2dc66a 65%, #1a8a48);
+    color: #06150d;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 26px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 8px 28px -10px var(--accent-glow), inset 0 -10px 18px -10px rgba(0,0,0,0.4);
+    align-self: center;
+    letter-spacing: -0.02em;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    margin: 0;
+  }
+  .eyebrow .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 8px;
+    transform: translateY(-1px);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+  h1.title {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 36px;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--text);
+  }
+  h1.title em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .view-links {
+    display: flex;
+    gap: 4px;
+    margin-top: 12px;
+    align-self: end;
+  }
+  .view-link {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-decoration: none;
+    background: var(--panel-2);
+  }
+  .view-link.is-active {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+    background: rgba(74,222,128,0.06);
+  }
+  .view-link:hover:not(.is-active) {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  .header-stats {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    justify-self: end;
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    column-gap: 28px;
+  }
+  .hstat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    display: block;
+  }
+  .hstat-value {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 4px;
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+  .hstat-value.is-warn { color: var(--warn); }
+  .hstat-value.is-crit { color: var(--crit); }
+  .hstat-foot {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 2px;
+    display: block;
+  }
+
+  /* ---- CLOCK ---------------------------------------------------- */
+  .clock {
+    grid-area: clock;
+    background:
+      radial-gradient(600px 240px at 80% -20%, rgba(93,212,255,0.10), transparent 60%),
+      linear-gradient(180deg, #091814 0%, #06120e 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 28px;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr auto;
+    column-gap: 26px;
+  }
+  .clock::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 23px, rgba(255,255,255,0.012) 23px 24px),
+      repeating-linear-gradient(90deg, transparent 0 23px, rgba(255,255,255,0.012) 23px 24px);
+    pointer-events: none;
+  }
+  .clock-meta-top {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    z-index: 1;
+  }
+  .clock-meta-top .corner-l { color: var(--info); }
+  .clock-meta-top .corner-r { color: var(--text-mute); display: flex; gap: 16px; }
+  .clock-meta-top .corner-r b { color: var(--text-dim); font-weight: 500; }
+
+  .clock-time {
+    grid-column: 1;
+    grid-row: 2;
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    align-self: center;
+    line-height: 1;
+    font-size: 92px;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 28px var(--info-glow);
+    display: flex;
+    align-items: baseline;
+    gap: 0;
+  }
+  .clock-time .colon {
+    color: var(--info);
+    margin: 0 2px;
+    animation: blink 1.06s steps(2, end) infinite;
+  }
+  .clock-time .secs {
+    font-size: 38px;
+    color: var(--text-dim);
+    margin-left: 14px;
+    align-self: center;
+    transform: translateY(-2px);
+  }
+  @keyframes blink {
+    50% { opacity: 0.3; }
+  }
+  .clock-side {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-self: end;
+    display: grid;
+    gap: 8px;
+    z-index: 1;
+  }
+  .clock-tz {
+    font-family: var(--mono);
+    color: var(--info);
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-align: right;
+  }
+  .clock-tz small {
+    color: var(--text-mute);
+    margin-right: 6px;
+  }
+  .clock-foot {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    z-index: 1;
+  }
+  .clock-date {
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .clock-date .weekday { color: var(--text); margin-right: 12px; }
+  .clock-date .iso     { color: var(--text-mute); font-family: var(--mono); margin-left: 14px; font-size: 13px; }
+  .clock-uptime {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-mute);
+    text-align: right;
+  }
+  .clock-uptime b { color: var(--accent); font-weight: 500; }
+
+  /* ---- MACHINE BLOCKS ------------------------------------------ */
+  .machine {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(74,222,128,0.03), transparent 30%),
+      var(--panel);
+    overflow: hidden;
+  }
+  .machine[data-host="proxmox-a"] { grid-area: machA; }
+  .machine[data-host="proxmox-b"] { grid-area: machB; }
+
+  .machine-head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    column-gap: 22px;
+    padding: 14px 22px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .host-badge {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .host-glyph {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 18px;
+    background: var(--panel-3);
+    border: 1px solid var(--border-strong);
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+  .host-name {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  .host-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+  .host-meta b { color: var(--text-dim); font-weight: 500; }
+
+  .host-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(74,222,128,0.06);
+    border: 1px solid var(--accent-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .host-status .pip {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .host-status.is-warn { background: rgba(245,184,74,0.08); border-color: rgba(245,184,74,0.5); color: var(--warn); }
+  .host-status.is-warn .pip { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+  .host-quickstats {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+  }
+  .qs {
+    text-align: right;
+    font-family: var(--mono);
+  }
+  .qs-label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    display: block;
+  }
+  .qs-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 2px;
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+  .qs-value.is-warn { color: var(--warn); }
+  .qs-value.is-crit { color: var(--crit); }
+
+  /* machine body: disks left, summary right */
+  .machine-body {
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    gap: 0;
+  }
+  .panel-section {
+    padding: 14px 18px 18px;
+  }
+  .panel-section + .panel-section {
+    border-left: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,0,0,0.18), transparent 40%);
+  }
+  .panel-section h3 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-section h3::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .panel-section h3 .count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-left: auto;
+    letter-spacing: 0.1em;
+  }
+
+  /* ---- DISK GRID ----------------------------------------------- */
+  .disks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 10px;
+  }
+  .disk-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px 12px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .disk-card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
+  .disk-card[data-state="warn"] { border-color: rgba(245,184,74,0.4); background: linear-gradient(180deg, rgba(245,184,74,0.06), var(--panel-2)); }
+  .disk-card[data-state="crit"] { border-color: rgba(255,107,74,0.45); background: linear-gradient(180deg, rgba(255,107,74,0.08), var(--panel-2)); }
+  .disk-card[data-state="crit"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 30px rgba(255,107,74,0.18);
+    border-radius: inherit;
+  }
+
+  .disk-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .disk-slot {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  .disk-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+  }
+  .disk-tag.nvme { color: var(--info); border-color: rgba(93,212,255,0.25); background: rgba(93,212,255,0.06); }
+  .disk-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mute);
+    line-height: 1.4;
+    min-height: 28px;
+  }
+  .disk-meta .model { color: var(--text-dim); }
+  .disk-meta .serial { color: var(--text-faint); }
+
+  .gauge {
+    width: 100%;
+    height: 110px;
+    margin: 2px 0 -8px;
+  }
+
+  .disk-foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .foot-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    display: block;
+  }
+  .foot-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 1px;
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+  .foot-value.muted { color: var(--text-faint); }
+  .disk-foot .col-r { text-align: right; }
+
+  .microbar {
+    margin-top: 8px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--panel-3);
+    overflow: hidden;
+  }
+  .microbar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+    transition: width 0.4s;
+  }
+
+  /* ---- SUMMARY (CPU pkg / cores / storage) ---------------------- */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .sumcard {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 110px;
+  }
+  .sumcard-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .sumcard-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-top: auto;
+  }
+  .sumcard-value .unit { font-size: 14px; color: var(--text-mute); margin-left: 2px; font-weight: 400; }
+  .sumcard-value.is-warn { color: var(--warn); }
+  .sumcard-value.is-crit { color: var(--crit); }
+  .sumcard-foot {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+  .sumcard .bar {
+    height: 4px;
+    border-radius: 3px;
+    background: var(--panel-3);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .sumcard .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  }
+  .sumcard .bar-fill.is-warn { background: linear-gradient(90deg, #a17320, var(--warn)); }
+  .sumcard .bar-fill.is-crit { background: linear-gradient(90deg, #8a2e1a, var(--crit)); }
+
+  /* cores */
+  .core-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .core-chip {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-family: var(--mono);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .core-chip::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px;
+    width: var(--w, 0%);
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+  .core-chip[data-state="warn"]::after { background: var(--warn); }
+  .core-chip[data-state="crit"]::after { background: var(--crit); }
+  .core-label {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--text-mute);
+  }
+  .core-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .core-val.is-warn { color: var(--warn); }
+  .core-val.is-crit { color: var(--crit); }
+
+  /* storage rows */
+  .storage-list { display: grid; gap: 10px; }
+  .storage-row {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .storage-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--mono);
+    margin-bottom: 6px;
+  }
+  .storage-row-head .name { font-size: 12px; color: var(--text-dim); font-weight: 500; letter-spacing: 0.04em; }
+  .storage-row-head .pct  { font-size: 14px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .storage-row-head .pct.is-warn { color: var(--warn); }
+  .storage-row-head .pct.is-crit { color: var(--crit); }
+  .storage-row .bar { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+  .storage-row .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); }
+  .storage-row .bar-fill.is-warn { background: linear-gradient(90deg, #a17320, var(--warn)); }
+  .storage-row .bar-fill.is-crit { background: linear-gradient(90deg, #8a2e1a, var(--crit)); }
+  .storage-row .detail {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 5px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---- HISTORY CHART ------------------------------------------- */
+  .history-card {
+    grid-area: history;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 16px 20px 18px;
+  }
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .history-head h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    margin: 0;
+  }
+  .history-legend {
+    display: flex;
+    gap: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend-chip { display: flex; align-items: center; gap: 6px; }
+  .legend-chip .swatch {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+  .history-range {
+    display: flex; gap: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .history-range button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-mute);
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .history-range button.is-active {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+    background: rgba(74,222,128,0.06);
+  }
+  #history-chart {
+    width: 100%;
+    height: 260px;
+  }
+
+  /* tiny utility */
+  .sep { color: var(--text-faint); margin: 0 6px; }
+</style>
+</head>
+<body>
+
+<main class="layout">
+
+  <!-- ============== HEADER ============== -->
+  <header class="header">
+    <div class="brand-mark">PT</div>
+    <p class="eyebrow"><span class="dot"></span>Host Monitor · Cluster overview</p>
+    <h1 class="title">Proxmox <em>Thermals</em></h1>
+    <nav class="view-links" aria-label="View selector">
+      <a href="#" class="view-link is-active">Cluster View</a>
+      <a href="#" class="view-link">Large</a>
+      <a href="#" class="view-link">Simple</a>
+    </nav>
+
+    <div class="header-stats">
+      <div>
+        <span class="hstat-label">Hosts up</span>
+        <span class="hstat-value">2 / 2</span>
+        <span class="hstat-foot">last poll · 30s</span>
+      </div>
+      <div>
+        <span class="hstat-label">Running VMs</span>
+        <span class="hstat-value" id="hs-vms">11</span>
+        <span class="hstat-foot">across cluster</span>
+      </div>
+      <div>
+        <span class="hstat-label">Hot disks</span>
+        <span class="hstat-value is-crit" id="hs-hot">2</span>
+        <span class="hstat-foot">≥ 70 °C</span>
+      </div>
+      <div>
+        <span class="hstat-label">Max temp</span>
+        <span class="hstat-value is-crit" id="hs-max">85.0 °C</span>
+        <span class="hstat-foot">nvme1n1 · proxmox-a</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============== CLOCK (top-right, 40% × 200px) ============== -->
+  <section class="clock" aria-label="Reloj">
+    <div class="clock-meta-top">
+      <span class="corner-l">● LIVE</span>
+      <span class="corner-r">
+        <span><b id="clock-week"></b> WEEK</span>
+        <span>DOY <b id="clock-doy"></b></span>
+        <span>Q<b id="clock-q"></b></span>
+      </span>
+    </div>
+
+    <div class="clock-time">
+      <span id="clk-h">14</span><span class="colon">:</span><span id="clk-m">32</span><span class="secs"><span class="colon">:</span><span id="clk-s">08</span></span>
+    </div>
+
+    <div class="clock-side">
+      <div class="clock-tz"><small>TZ</small>EUROPE/MADRID</div>
+      <div class="clock-tz"><small>UTC</small><span id="clk-utc">12:32</span></div>
+    </div>
+
+    <div class="clock-foot">
+      <div class="clock-date">
+        <span class="weekday" id="clk-weekday">jueves</span>
+        <span id="clk-date">28 de mayo de 2026</span>
+        <span class="iso" id="clk-iso">2026-05-28</span>
+      </div>
+      <div class="clock-uptime">
+        cluster uptime · <b id="clk-uptime">14d 03h 12m</b>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== MACHINE A ============== -->
+  <section class="machine" data-host="proxmox-a">
+    <div class="machine-head">
+      <div class="host-badge">
+        <div class="host-glyph">A</div>
+        <div>
+          <div class="host-name">proxmox-a <span style="color:var(--text-faint); font-weight:400; font-family:var(--mono); font-size:14px; margin-left:8px;">primary</span></div>
+          <div class="host-meta">10.0.0.11 <span class="sep">·</span> PVE 8.2.4 <span class="sep">·</span> Xeon E5-2680 v4 · 32 cores <span class="sep">·</span> running VMs: <b>104, 111, 202, 203, 208, 941</b></div>
+        </div>
+      </div>
+
+      <div class="host-status is-warn" title="Two NVMe disks above 70°C">
+        <span class="pip"></span> Thermal warning
+      </div>
+
+      <div class="host-quickstats">
+        <div class="qs"><span class="qs-label">CPU pkg</span><span class="qs-value">46.0 <small style="font-size:12px;color:var(--text-mute);">°C</small></span></div>
+        <div class="qs"><span class="qs-label">CPU load</span><span class="qs-value">20.7 <small style="font-size:12px;color:var(--text-mute);">%</small></span></div>
+        <div class="qs"><span class="qs-label">RAM</span><span class="qs-value is-warn">77.6 <small style="font-size:12px;color:var(--text-mute);">%</small></span></div>
+        <div class="qs"><span class="qs-label">Max disk</span><span class="qs-value is-crit">85.0 <small style="font-size:12px;color:var(--text-mute);">°C</small></span></div>
+      </div>
+    </div>
+
+    <div class="machine-body">
+      <!-- disks -->
+      <div class="panel-section">
+        <h3>Disk thermals <span class="count">8 devices</span></h3>
+        <div class="disks-grid" id="disks-a"></div>
+      </div>
+
+      <!-- summary -->
+      <div class="panel-section">
+        <h3>Host summary</h3>
+
+        <div class="summary-grid">
+          <div class="sumcard">
+            <span class="sumcard-label">CPU package</span>
+            <span class="sumcard-value">46.0<span class="unit">°C</span></span>
+            <span class="sumcard-foot">primary pkg sensor</span>
+            <div class="bar"><div class="bar-fill" style="width:46%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">Motherboard</span>
+            <span class="sumcard-value">27.8<span class="unit">°C</span></span>
+            <span class="sumcard-foot">acpi tz0</span>
+            <div class="bar"><div class="bar-fill" style="width:28%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">CPU usage</span>
+            <span class="sumcard-value">20.7<span class="unit">%</span></span>
+            <span class="sumcard-foot">load 2.32 · 2.56 · 2.40</span>
+            <div class="bar"><div class="bar-fill" style="width:20.7%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">RAM usage</span>
+            <span class="sumcard-value is-warn">77.6<span class="unit">%</span></span>
+            <span class="sumcard-foot">97.4 / 125.6 GB</span>
+            <div class="bar"><div class="bar-fill is-warn" style="width:77.6%"></div></div>
+          </div>
+        </div>
+
+        <h3>CPU cores</h3>
+        <div class="core-grid" id="cores-a"></div>
+
+        <h3>Storage</h3>
+        <div class="storage-list">
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">root fs</span><span class="pct">10.0 %</span></div>
+            <div class="bar"><div class="bar-fill" style="width:10%"></div></div>
+            <div class="detail">8.0 GB used · 93.9 GB total</div>
+          </div>
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">local-lvm</span><span class="pct">55.2 %</span></div>
+            <div class="bar"><div class="bar-fill" style="width:55.2%"></div></div>
+            <div class="detail">1640.6 GB free · 3662.0 GB total</div>
+          </div>
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">temp-storage</span><span class="pct is-warn">67.6 %</span></div>
+            <div class="bar"><div class="bar-fill is-warn" style="width:67.6%"></div></div>
+            <div class="detail">1000.0 GB free · 3666.4 GB total</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== MACHINE B ============== -->
+  <section class="machine" data-host="proxmox-b">
+    <div class="machine-head">
+      <div class="host-badge">
+        <div class="host-glyph" style="color:var(--info); border-color: rgba(93,212,255,0.3);">B</div>
+        <div>
+          <div class="host-name">proxmox-b <span style="color:var(--text-faint); font-weight:400; font-family:var(--mono); font-size:14px; margin-left:8px;">compute</span></div>
+          <div class="host-meta">10.0.0.12 <span class="sep">·</span> PVE 8.2.4 <span class="sep">·</span> Ryzen 9 7950X · 16 cores <span class="sep">·</span> running VMs: <b>301, 302, 305, 410, 612</b></div>
+        </div>
+      </div>
+
+      <div class="host-status" title="All sensors nominal">
+        <span class="pip"></span> Nominal
+      </div>
+
+      <div class="host-quickstats">
+        <div class="qs"><span class="qs-label">CPU pkg</span><span class="qs-value">52.3 <small style="font-size:12px;color:var(--text-mute);">°C</small></span></div>
+        <div class="qs"><span class="qs-label">CPU load</span><span class="qs-value">38.4 <small style="font-size:12px;color:var(--text-mute);">%</small></span></div>
+        <div class="qs"><span class="qs-label">RAM</span><span class="qs-value">42.1 <small style="font-size:12px;color:var(--text-mute);">%</small></span></div>
+        <div class="qs"><span class="qs-label">Max disk</span><span class="qs-value">44.0 <small style="font-size:12px;color:var(--text-mute);">°C</small></span></div>
+      </div>
+    </div>
+
+    <div class="machine-body">
+      <div class="panel-section">
+        <h3>Disk thermals <span class="count">4 devices</span></h3>
+        <div class="disks-grid" id="disks-b"></div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Host summary</h3>
+
+        <div class="summary-grid">
+          <div class="sumcard">
+            <span class="sumcard-label">CPU package</span>
+            <span class="sumcard-value">52.3<span class="unit">°C</span></span>
+            <span class="sumcard-foot">tdie / ccd avg</span>
+            <div class="bar"><div class="bar-fill" style="width:52.3%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">Motherboard</span>
+            <span class="sumcard-value">31.5<span class="unit">°C</span></span>
+            <span class="sumcard-foot">acpi tz0</span>
+            <div class="bar"><div class="bar-fill" style="width:31.5%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">CPU usage</span>
+            <span class="sumcard-value">38.4<span class="unit">%</span></span>
+            <span class="sumcard-foot">load 5.12 · 4.80 · 4.55</span>
+            <div class="bar"><div class="bar-fill" style="width:38.4%"></div></div>
+          </div>
+          <div class="sumcard">
+            <span class="sumcard-label">RAM usage</span>
+            <span class="sumcard-value">42.1<span class="unit">%</span></span>
+            <span class="sumcard-foot">26.9 / 64.0 GB</span>
+            <div class="bar"><div class="bar-fill" style="width:42.1%"></div></div>
+          </div>
+        </div>
+
+        <h3>CPU cores</h3>
+        <div class="core-grid" id="cores-b"></div>
+
+        <h3>Storage</h3>
+        <div class="storage-list">
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">root fs</span><span class="pct">14.2 %</span></div>
+            <div class="bar"><div class="bar-fill" style="width:14.2%"></div></div>
+            <div class="detail">13.3 GB used · 93.9 GB total</div>
+          </div>
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">vm-pool</span><span class="pct">31.8 %</span></div>
+            <div class="bar"><div class="bar-fill" style="width:31.8%"></div></div>
+            <div class="detail">1362.0 GB free · 2000.0 GB total</div>
+          </div>
+          <div class="storage-row">
+            <div class="storage-row-head"><span class="name">backups-nfs</span><span class="pct">72.4 %</span></div>
+            <div class="bar"><div class="bar-fill is-warn" style="width:72.4%"></div></div>
+            <div class="detail">2206.0 GB free · 8000.0 GB total</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== HISTORY ============== -->
+  <section class="history-card">
+    <div class="history-head">
+      <h3>Temperature history · cluster</h3>
+      <div class="history-legend">
+        <span class="legend-chip"><span class="swatch" style="background:#4ade80;"></span>proxmox-a CPU</span>
+        <span class="legend-chip"><span class="swatch" style="background:#9affc0;"></span>proxmox-a NVMe</span>
+        <span class="legend-chip"><span class="swatch" style="background:#5dd4ff;"></span>proxmox-b CPU</span>
+        <span class="legend-chip"><span class="swatch" style="background:#a8e8ff;"></span>proxmox-b NVMe</span>
+        <span class="legend-chip"><span class="swatch" style="background:#ff6b4a;"></span>warn / crit zone</span>
+      </div>
+      <div class="history-range">
+        <button>1H</button>
+        <button>6H</button>
+        <button class="is-active">24H</button>
+        <button>7D</button>
+      </div>
+    </div>
+    <div id="history-chart"></div>
+  </section>
+
+</main>
+
+<script>
+/* =========================================================
+   Data — placeholder shaped after thermals-front.md / current.json
+   ========================================================= */
+const DATA = {
+  hosts: {
+    "proxmox-a": {
+      disks: [
+        { slot: "NVMe 1", tag: "nvme", dev: "nvme0n1", model: "KINGSTON SKC3000D4096G", serial: "50026B76874B4626", temp: 82.0, ext: 48.0, used: null, total: "3.7TB", pct: 0 },
+        { slot: "NVMe 2", tag: "nvme", dev: "nvme1n1", model: "KINGSTON SKC3000D4096G", serial: "50026B7687459253", temp: 85.0, ext: 65.0, used: "8.0GB", total: "3.7TB", pct: 10 },
+        { slot: "SATA_5", tag: "sata", dev: "sda",     model: "KINGSTON SA400S37480G", serial: "50026B77822C5DFE", temp: 28.0, used: null,    total: "447GB", pct: 0 },
+        { slot: "SATA_6", tag: "sata", dev: "sdb",     model: "WD Blue SA510 2.5 4TB",  serial: "25388G400205",    temp: 18.0, used: "2480.1GB", total: "3.6TB", pct: 67.6 },
+        { slot: "SATA_7", tag: "sata", dev: "sdc",     model: "KINGSTON SA400S37960G", serial: "50026B73818B8CCD", temp: 24.0, used: null,    total: "894GB", pct: 0 },
+        { slot: "SATA_8", tag: "sata", dev: "sdd",     model: "WD Blue SA510 2.5 2TB",  serial: "2530Q3D02101",    temp: 26.0, used: null,    total: "1.8TB", pct: 0 },
+        { slot: "J1",     tag: "sata", dev: "sde",     model: "KINGSTON SA400S37960G", serial: "50026B7784285DAD", temp: 29.0, used: null,    total: "894GB", pct: 0 },
+        { slot: "J2",     tag: "sata", dev: "sdf",     model: "Samsung SSD 750 EVO 250GB", serial: "S33SNWBH660907H", temp: 30.0, used: null, total: "233GB", pct: 0 },
+      ],
+      cores: [
+        ["C0", 43.0], ["C4", 46.0], ["C8", 39.0], ["C12", 38.0], ["C16", 43.0],
+        ["C20", 40.0], ["C28", 39.0], ["C29", 39.0], ["C30", 39.0], ["C31", 39.0]
+      ]
+    },
+    "proxmox-b": {
+      disks: [
+        { slot: "NVMe 1", tag: "nvme", dev: "nvme0n1", model: "Samsung 990 PRO 2TB",    serial: "S6Z2NS0W804412", temp: 44.0, ext: 38.0, used: "612.3GB", total: "1.8TB", pct: 33.4 },
+        { slot: "NVMe 2", tag: "nvme", dev: "nvme1n1", model: "Samsung 990 PRO 2TB",    serial: "S6Z2NS0W804419", temp: 41.0, ext: 36.0, used: "488.0GB", total: "1.8TB", pct: 26.6 },
+        { slot: "SATA_1", tag: "sata", dev: "sda",     model: "WD Red SA500 1TB",       serial: "WD-WX21A12RT88", temp: 34.0, used: "318.0GB", total: "931GB", pct: 34.1 },
+        { slot: "SATA_2", tag: "sata", dev: "sdb",     model: "Crucial MX500 1TB",      serial: "1923E1F45C0B",   temp: 36.0, used: "211.7GB", total: "931GB", pct: 22.7 }
+      ],
+      cores: [
+        ["C0", 50.0], ["C1", 52.0], ["C2", 49.0], ["C3", 51.0], ["C4", 53.0],
+        ["C5", 50.0], ["C6", 48.0], ["C7", 50.0], ["C8", 51.0], ["C9", 49.0],
+        ["C10", 50.0],["C11", 50.0],["C12", 48.0],["C13", 49.0],["C14", 50.0]
+      ]
+    }
+  }
+};
+
+/* =========================================================
+   Helpers
+   ========================================================= */
+function tempState(c) {
+  if (c >= 70) return "crit";
+  if (c >= 55) return "warn";
+  return "ok";
+}
+function coreState(c) {
+  if (c >= 80) return "crit";
+  if (c >= 65) return "warn";
+  return "ok";
+}
+function colorFor(state) {
+  return state === "crit" ? "#ff6b4a" : state === "warn" ? "#f5b84a" : "#4ade80";
+}
+
+/* =========================================================
+   Disk gauge (ECharts)
+   ========================================================= */
+function renderGauge(el, value, state) {
+  const color = colorFor(state);
+  const trackColor = "#1a2a23";
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+  chart.setOption({
+    series: [{
+      type: "gauge",
+      startAngle: 210,
+      endAngle: -30,
+      min: 0,
+      max: 100,
+      radius: "108%",
+      center: ["50%", "72%"],
+      progress: { show: true, width: 9, roundCap: true, itemStyle: { color: color, shadowBlur: 10, shadowColor: color } },
+      axisLine: { lineStyle: { width: 9, color: [[1, trackColor]] } },
+      pointer: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      anchor: { show: false },
+      title: { show: false },
+      data: [{
+        value: value,
+        detail: {
+          valueAnimation: true,
+          offsetCenter: [0, "-5%"],
+          fontFamily: "JetBrains Mono",
+          fontSize: 22,
+          fontWeight: 700,
+          color: "#d8e6df",
+          formatter: function (v) { return v.toFixed(1) + " °C"; }
+        }
+      }],
+      detail: {
+        valueAnimation: true,
+        offsetCenter: [0, "-5%"],
+        fontFamily: "JetBrains Mono",
+        fontSize: 22,
+        fontWeight: 700,
+        color: "#d8e6df",
+        formatter: function (v) { return v.toFixed(1) + " °C"; }
+      }
+    }]
+  });
+  return chart;
+}
+
+/* =========================================================
+   Build disk cards
+   ========================================================= */
+function buildDisks(hostKey, containerId) {
+  const container = document.getElementById(containerId);
+  const disks = DATA.hosts[hostKey].disks;
+  container.innerHTML = disks.map((d, i) => {
+    const state = tempState(d.temp);
+    const usedTxt = d.used ?? "--";
+    const tagClass = d.tag === "nvme" ? "nvme" : "";
+    const extLine = d.ext != null ? `<div style="font-family:var(--mono); font-size:10px; color:var(--text-faint); margin-top:-4px; text-align:center;">ext ${d.ext.toFixed(1)}°C</div>` : "";
+    return `
+      <article class="disk-card" data-state="${state}">
+        <div class="disk-head">
+          <span class="disk-slot">${d.slot}</span>
+          <span class="disk-tag ${tagClass}">${d.tag.toUpperCase()}</span>
+        </div>
+        <div class="disk-meta">
+          <div class="model">${d.model}</div>
+          <div class="serial">${d.dev} · ${d.serial.slice(-8)}</div>
+        </div>
+        <div class="gauge" id="gauge-${hostKey}-${i}"></div>
+        ${extLine}
+        <div class="disk-foot">
+          <div>
+            <span class="foot-label">Used</span>
+            <span class="foot-value ${d.used ? '' : 'muted'}">${usedTxt}</span>
+          </div>
+          <div class="col-r">
+            <span class="foot-label">Total</span>
+            <span class="foot-value">${d.total}</span>
+          </div>
+        </div>
+        <div class="microbar"><div class="microbar-fill" style="width:${d.pct}%"></div></div>
+      </article>
+    `;
+  }).join("");
+
+  disks.forEach((d, i) => {
+    const el = document.getElementById(`gauge-${hostKey}-${i}`);
+    renderGauge(el, d.temp, tempState(d.temp));
+  });
+}
+
+/* =========================================================
+   Build core chips
+   ========================================================= */
+function buildCores(hostKey, containerId) {
+  const container = document.getElementById(containerId);
+  const cores = DATA.hosts[hostKey].cores;
+  container.innerHTML = cores.map(([label, val]) => {
+    const state = coreState(val);
+    const w = Math.min(100, (val / 100) * 100);
+    return `
+      <div class="core-chip" data-state="${state}" style="--w:${w}%">
+        <span class="core-label">${label}</span>
+        <span class="core-val ${state === 'ok' ? '' : 'is-' + state}">${val.toFixed(1)}<small style="font-size:9px; color:var(--text-mute); margin-left:1px;">°C</small></span>
+      </div>
+    `;
+  }).join("");
+}
+
+/* =========================================================
+   History chart
+   ========================================================= */
+function buildHistory() {
+  const el = document.getElementById("history-chart");
+  const chart = echarts.init(el, null, { renderer: "canvas" });
+
+  // Generate ~120 points (last 24h, 12-min resolution) with some pattern
+  const now = Date.now();
+  const points = 120;
+  const times = [];
+  function gen(base, amp, noise, spikes = []) {
+    const arr = [];
+    for (let i = 0; i < points; i++) {
+      const t = now - (points - 1 - i) * 12 * 60 * 1000;
+      if (times.length < points) times.push(t);
+      let v = base + Math.sin(i / 11) * amp + (Math.random() - 0.5) * noise;
+      spikes.forEach(([at, mag]) => {
+        const d = Math.abs(i - at);
+        if (d < 8) v += mag * Math.exp(-d * d / 8);
+      });
+      arr.push([t, +v.toFixed(2)]);
+    }
+    return arr;
+  }
+
+  const series = [
+    { name: "proxmox-a CPU pkg",  color: "#4ade80", data: gen(44, 4, 3, [[42, 6], [88, 5]]) },
+    { name: "proxmox-a NVMe 1",   color: "#9affc0", data: gen(70, 6, 4, [[42, 14], [88, 12], [110, 8]]) },
+    { name: "proxmox-a NVMe 2",   color: "#c9ffdb", data: gen(72, 5, 4, [[42, 13], [88, 13], [110, 9]]) },
+    { name: "proxmox-b CPU pkg",  color: "#5dd4ff", data: gen(50, 6, 4, [[55, 7]]) },
+    { name: "proxmox-b NVMe 1",   color: "#a8e8ff", data: gen(40, 3, 2) },
+    { name: "proxmox-b NVMe 2",   color: "#cbeeff", data: gen(38, 3, 2) },
+  ];
+
+  chart.setOption({
+    backgroundColor: "transparent",
+    animationDuration: 600,
+    grid: { left: 44, right: 28, top: 20, bottom: 30 },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "#0d1612",
+      borderColor: "#233a30",
+      borderWidth: 1,
+      textStyle: { color: "#d8e6df", fontFamily: "JetBrains Mono", fontSize: 11 },
+      axisPointer: { lineStyle: { color: "#4ade80", opacity: 0.4 } }
+    },
+    xAxis: {
+      type: "time",
+      axisLine: { lineStyle: { color: "#233a30" } },
+      axisLabel: { color: "#6a7a72", fontFamily: "JetBrains Mono", fontSize: 10 },
+      splitLine: { show: false }
+    },
+    yAxis: {
+      type: "value",
+      min: 10,
+      max: 100,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: "#6a7a72", fontFamily: "JetBrains Mono", fontSize: 10, formatter: "{value}°" },
+      splitLine: { lineStyle: { color: "#16241d", type: "solid" } }
+    },
+    // warn/crit zone bands
+    series: [
+      {
+        name: "crit zone", type: "line", showSymbol: false, lineStyle: { opacity: 0 },
+        data: times.map(t => [t, 100]),
+        areaStyle: { color: "rgba(255,107,74,0.06)" },
+        stack: null, z: 0, silent: true
+      },
+      ...series.map(s => ({
+        name: s.name,
+        type: "line",
+        showSymbol: false,
+        smooth: true,
+        sampling: "lttb",
+        lineStyle: { width: 1.6, color: s.color },
+        itemStyle: { color: s.color },
+        emphasis: { lineStyle: { width: 2.2 } },
+        data: s.data
+      })),
+      // crit threshold markline (drawn on first real series)
+      {
+        name: "thr", type: "line", data: [], markLine: {
+          silent: true, symbol: "none",
+          lineStyle: { color: "#ff6b4a", type: "dashed", opacity: 0.4, width: 1 },
+          label: { color: "#ff6b4a", fontFamily: "JetBrains Mono", fontSize: 10, formatter: "crit 70°C", position: "insideStartTop" },
+          data: [{ yAxis: 70 }]
+        }
+      }
+    ]
+  });
+
+  window.addEventListener("resize", () => chart.resize());
+}
+
+/* =========================================================
+   Live clock
+   ========================================================= */
+const MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const WEEKDAYS_ES = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+
+function pad(n) { return String(n).padStart(2, "0"); }
+function isoWeek(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+function dayOfYear(d) {
+  const start = new Date(d.getFullYear(), 0, 0);
+  return Math.floor((d - start) / 86400000);
+}
+
+function tickClock() {
+  const now = new Date();
+  document.getElementById("clk-h").textContent = pad(now.getHours());
+  document.getElementById("clk-m").textContent = pad(now.getMinutes());
+  document.getElementById("clk-s").textContent = pad(now.getSeconds());
+  document.getElementById("clk-utc").textContent =
+    pad(now.getUTCHours()) + ":" + pad(now.getUTCMinutes());
+
+  document.getElementById("clk-weekday").textContent = WEEKDAYS_ES[now.getDay()];
+  document.getElementById("clk-date").textContent =
+    `${now.getDate()} de ${MONTHS_ES[now.getMonth()]} de ${now.getFullYear()}`;
+  document.getElementById("clk-iso").textContent =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  document.getElementById("clock-week").textContent = pad(isoWeek(now));
+  document.getElementById("clock-doy").textContent  = pad(dayOfYear(now));
+  document.getElementById("clock-q").textContent    = Math.ceil((now.getMonth()+1)/3);
+}
+
+function tickUptime() {
+  // Pretend the cluster booted 14d 03h 12m ago at page load
+  const bootDelta = (14*24 + 3) * 3600 * 1000 + 12 * 60 * 1000;
+  const start = Date.now() - bootDelta;
+  setInterval(() => {
+    const diff = Date.now() - start;
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById("clk-uptime").textContent =
+      `${d}d ${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+  }, 1000);
+}
+
+/* =========================================================
+   Init
+   ========================================================= */
+document.addEventListener("DOMContentLoaded", () => {
+  tickClock();
+  setInterval(tickClock, 1000);
+  tickUptime();
+
+  buildDisks("proxmox-a", "disks-a");
+  buildCores("proxmox-a", "cores-a");
+  buildDisks("proxmox-b", "disks-b");
+  buildCores("proxmox-b", "cores-b");
+  buildHistory();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Proxmox Thermals — Mail</title>
+<meta name="viewport" content="width=1920" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:           #04090a;
+    --bg-grad:      radial-gradient(900px 600px at 50% -10%, #07120e 0%, #04090a 60%, #02060a 100%);
+    --panel:        #07100c;
+    --panel-2:      #0a1612;
+    --panel-3:      #0e1f19;
+    --panel-4:      #122a22;
+    --border:       #122019;
+    --border-strong:#1c3127;
+    --text:         #d4e8df;
+    --text-dim:     #7b9489;
+    --text-mute:    #4a625a;
+    --text-faint:   #2a3e36;
+    --ok:           #4ade80;
+    --ok-dim:       #1f6f47;
+    --warn:         #f5b84a;
+    --warn-dim:     #6b4e1c;
+    --crit:         #ff5a3c;
+    --crit-dim:     #6e2716;
+    --info:         #5dd4ff;
+    --info-dim:     #1d4d63;
+    --mono:         "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.4;
+    font-feature-settings: "ss01", "cv11", "zero";
+    -webkit-font-smoothing: antialiased;
+  }
+  body { background: var(--bg-grad); min-height: 100vh; }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,0.012) 2px 3px);
+    mix-blend-mode: overlay;
+    z-index: 1000;
+  }
+
+  .nocgrid {
+    width: 1920px;
+    margin: 0 auto;
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "header  header  header  header  header  header  clock   clock   clock   clock"
+      "counts  counts  counts  counts  counts  counts  counts  counts  counts  counts"
+      "mail    mail    mail    mail    mail    mail    mail    mail    mail    mail";
+  }
+
+  /* ===== HEADER (same as NOC) ===== */
+  .header {
+    grid-area: header;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    column-gap: 18px;
+    padding: 10px 14px;
+  }
+  .glyph {
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
+    border: 1px solid var(--ok-dim);
+    background: rgba(74,222,128,0.06);
+    color: var(--ok);
+    font-weight: 700; font-size: 14px;
+    border-radius: 4px;
+  }
+  .h-title { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+  .h-title em { font-style: normal; color: var(--ok); }
+  .h-meta { font-size: 10px; color: var(--text-mute); letter-spacing: 0.12em; margin-top: 2px; }
+  .h-meta b { color: var(--text-dim); font-weight: 500; }
+  .h-meta .live::before { content: "●"; color: var(--ok); margin-right: 5px; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  .h-nav { display: flex; gap: 1px; }
+  .h-nav a {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-mute);
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    text-decoration: none;
+  }
+  .h-nav a:first-child { border-radius: 4px 0 0 4px; }
+  .h-nav a:last-child  { border-radius: 0 4px 4px 0; }
+  .h-nav a.is-active { color: var(--ok); border-color: var(--ok-dim); background: rgba(74,222,128,0.06); }
+
+  /* ===== CLOCK (same) ===== */
+  .clock {
+    grid-area: clock;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr auto;
+    column-gap: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .clock::before {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, transparent 0 15px, rgba(93,212,255,0.020) 15px 16px);
+    pointer-events: none;
+  }
+  .clock-top {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--text-mute); z-index: 1;
+  }
+  .clock-top .left { color: var(--info); }
+  .clock-top .right { display: flex; gap: 12px; }
+  .clock-top .right b { color: var(--text-dim); font-weight: 500; }
+  .clock-time {
+    grid-column: 1; align-self: center;
+    font-size: 56px; font-weight: 700; color: var(--text);
+    line-height: 1; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline;
+    text-shadow: 0 0 14px rgba(93,212,255,0.10);
+  }
+  .clock-time .colon { color: var(--info); animation: blink 1.06s steps(2) infinite; }
+  .clock-time .secs { font-size: 26px; color: var(--text-dim); margin-left: 8px; transform: translateY(-1px); }
+  @keyframes blink { 50% { opacity: 0.3; } }
+  .clock-side { grid-column: 2; align-self: center; text-align: right; z-index: 1; }
+  .clock-side .tz { font-size: 11px; color: var(--info); letter-spacing: 0.18em; }
+  .clock-side .tz small { color: var(--text-mute); margin-right: 6px; }
+  .clock-side .utc { font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.12em; }
+  .clock-side .utc small { color: var(--text-mute); margin-right: 6px; }
+  .clock-bottom {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: end; z-index: 1;
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.10em; margin-top: 4px;
+  }
+  .clock-bottom .date b { color: var(--text); }
+  .clock-bottom .date .iso { color: var(--text-mute); margin-left: 10px; font-size: 10px; }
+  .clock-bottom .upt { color: var(--text-mute); }
+  .clock-bottom .upt b { color: var(--ok); font-weight: 500; }
+
+  /* ===== COUNTS strip (mail stats) ===== */
+  .counts {
+    grid-area: counts;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+  }
+  .cnt {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 10px 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    position: relative;
+  }
+  .cnt-label {
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .cnt-val {
+    font-size: 20px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums; line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  .cnt-val small { font-size: 10px; color: var(--text-mute); margin-left: 3px; font-weight: 400; }
+  .cnt-val.is-crit { color: var(--crit); }
+  .cnt-val.is-warn { color: var(--warn); }
+  .cnt-val.is-info { color: var(--info); }
+  .cnt-val.is-ok   { color: var(--ok); }
+  .cnt-foot { font-size: 9px; color: var(--text-faint); letter-spacing: 0.04em; }
+
+  /* ===== MAIL 3-pane ===== */
+  .mail {
+    grid-area: mail;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: grid;
+    grid-template-columns: 240px 540px 1fr;
+    min-height: 820px;
+    overflow: hidden;
+  }
+  .pane { display: flex; flex-direction: column; min-width: 0; }
+  .pane + .pane { border-left: 1px solid var(--border); }
+
+  .pane-hd {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-mute);
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    flex-shrink: 0;
+  }
+  .pane-hd .lead { display: flex; align-items: center; gap: 8px; color: var(--text-dim); }
+  .pane-hd .lead::before { content: "▸"; color: var(--ok); font-size: 10px; }
+  .pane-hd .tail { display: flex; gap: 8px; }
+  .iconbtn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-mute);
+    padding: 3px 8px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .iconbtn:hover { color: var(--text); border-color: var(--border-strong); }
+  .iconbtn.is-active { color: var(--ok); border-color: var(--ok-dim); background: rgba(74,222,128,0.06); }
+
+  /* ----- LEFT pane: folders ----- */
+  .folders { padding: 8px 6px; display: grid; gap: 1px; flex: 1; }
+  .folder-section { margin-top: 8px; }
+  .folder-section:first-child { margin-top: 0; }
+  .folder-section-label {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 4px 10px 3px;
+  }
+  .folder {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+  .folder:hover { background: var(--panel-2); color: var(--text); }
+  .folder.is-active {
+    background: rgba(74,222,128,0.08);
+    color: var(--ok);
+    box-shadow: inset 2px 0 0 var(--ok);
+  }
+  .folder .ic {
+    font-size: 10px;
+    color: var(--text-mute);
+    text-align: center;
+  }
+  .folder.is-active .ic { color: var(--ok); }
+  .folder .badge {
+    font-size: 10px;
+    background: var(--panel-3);
+    color: var(--text-dim);
+    border-radius: 999px;
+    padding: 1px 7px;
+    min-width: 22px;
+    text-align: center;
+  }
+  .folder.is-active .badge { background: var(--ok-dim); color: #061a10; font-weight: 600; }
+  .folder .badge.is-crit { background: var(--crit-dim); color: #ffd2c5; }
+  .folder .badge.is-warn { background: var(--warn-dim); color: #ffe6b8; }
+
+  .compose-btn {
+    margin: 10px 8px;
+    background: linear-gradient(180deg, rgba(74,222,128,0.12), rgba(74,222,128,0.06));
+    border: 1px solid var(--ok-dim);
+    color: var(--ok);
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .compose-btn::after { content: "↵"; color: var(--text-mute); font-size: 12px; }
+
+  .acct-summary {
+    margin-top: auto;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    font-size: 10px;
+    color: var(--text-mute);
+    line-height: 1.5;
+  }
+  .acct-summary b { color: var(--text-dim); font-weight: 500; }
+  .acct-summary .ok::before { content: "●"; color: var(--ok); margin-right: 5px; }
+
+  /* ----- MIDDLE pane: list ----- */
+  .list-search {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    align-items: center;
+  }
+  .list-search input {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    outline: none;
+  }
+  .list-search input:focus { border-color: var(--ok-dim); }
+  .list-search input::placeholder { color: var(--text-faint); }
+  .filter-tabs { display: flex; gap: 1px; }
+  .filter-tabs button {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-mute);
+    padding: 5px 9px;
+    font: inherit;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .filter-tabs button:first-child { border-radius: 3px 0 0 3px; }
+  .filter-tabs button:last-child  { border-radius: 0 3px 3px 0; }
+  .filter-tabs button.is-active { color: var(--ok); border-color: var(--ok-dim); background: rgba(74,222,128,0.06); }
+  .filter-tabs button .count {
+    color: var(--text-faint);
+    margin-left: 4px;
+    font-size: 8px;
+  }
+  .filter-tabs button.is-active .count { color: var(--ok); }
+
+  .mail-list { overflow-y: auto; }
+  .mitem {
+    display: grid;
+    grid-template-columns: 4px 16px 1fr auto;
+    gap: 8px;
+    padding: 10px 12px 11px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    position: relative;
+  }
+  .mitem:hover { background: var(--panel-2); }
+  .mitem.is-selected {
+    background: rgba(74,222,128,0.06);
+    box-shadow: inset 2px 0 0 var(--ok);
+  }
+  .mitem .lvl-bar {
+    grid-row: 1 / -1;
+    align-self: stretch;
+    border-radius: 1px;
+  }
+  .mitem[data-lvl="crit"] .lvl-bar { background: var(--crit); }
+  .mitem[data-lvl="warn"] .lvl-bar { background: var(--warn); }
+  .mitem[data-lvl="info"] .lvl-bar { background: var(--info); }
+  .mitem[data-lvl="ok"]   .lvl-bar { background: var(--ok); }
+
+  .mitem .dot {
+    grid-row: 1 / span 1;
+    align-self: center;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--text-faint);
+  }
+  .mitem.is-unread .dot { background: var(--info); border-color: var(--info); box-shadow: 0 0 6px var(--info); }
+
+  .mitem .meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+  .mitem .meta-row1 {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px;
+  }
+  .mitem .from {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mitem.is-unread .from { color: var(--text); font-weight: 600; }
+  .mitem .when { font-size: 10px; color: var(--text-mute); flex-shrink: 0; }
+  .mitem .subj {
+    font-size: 12px;
+    color: var(--text);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mitem .subj .tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: 1px;
+    background: var(--panel-3);
+    color: var(--text-mute);
+  }
+  .mitem .subj .tag.is-crit { background: rgba(255,90,60,0.15); color: var(--crit); }
+  .mitem .subj .tag.is-warn { background: rgba(245,184,74,0.15); color: var(--warn); }
+  .mitem .subj .tag.is-info { background: rgba(93,212,255,0.12); color: var(--info); }
+  .mitem .subj .tag.is-ok   { background: rgba(74,222,128,0.12); color: var(--ok); }
+  .mitem.is-unread .subj { color: var(--text); font-weight: 600; }
+  .mitem:not(.is-unread) .subj { color: var(--text-dim); }
+  .mitem .preview {
+    font-size: 10px;
+    color: var(--text-mute);
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .mitem .right-meta {
+    grid-row: 1 / -1;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .mitem .right-meta .host {
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mitem .right-meta .attach { font-size: 11px; color: var(--text-mute); }
+  .mitem .right-meta .star  { font-size: 11px; color: var(--text-faint); }
+  .mitem .right-meta .star.is-on { color: var(--warn); }
+
+  /* ----- RIGHT pane: preview ----- */
+  .preview-pane { display: flex; flex-direction: column; }
+  .pv-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .pv-toolbar .tools { display: flex; gap: 4px; }
+  .pv-toolbar .crumb { font-size: 10px; color: var(--text-mute); letter-spacing: 0.14em; }
+  .pv-toolbar .crumb b { color: var(--text-dim); font-weight: 500; }
+
+  .pv-head {
+    padding: 14px 22px 12px;
+    border-bottom: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgba(255,90,60,0.04), transparent 80%),
+      var(--panel);
+  }
+  .pv-subj {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pv-subj .tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(255,90,60,0.15);
+    color: var(--crit);
+    border: 1px solid var(--crit-dim);
+  }
+
+  .pv-meta {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    row-gap: 3px;
+    column-gap: 12px;
+    margin-top: 10px;
+    font-size: 11px;
+  }
+  .pv-meta dt {
+    color: var(--text-mute);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: 9px;
+    align-self: center;
+  }
+  .pv-meta dd {
+    margin: 0;
+    color: var(--text-dim);
+  }
+  .pv-meta dd b { color: var(--text); font-weight: 500; }
+  .pv-meta .chip {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--panel-3);
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-right: 4px;
+  }
+
+  .pv-body {
+    padding: 18px 22px 30px;
+    flex: 1;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+  .pv-body p { margin: 0 0 12px; }
+  .pv-body .alert-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--crit);
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin: 16px 0;
+    font-family: var(--mono);
+  }
+  .pv-body .alert-block h4 {
+    margin: 0 0 8px;
+    color: var(--crit);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .pv-body .alert-block table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .pv-body .alert-block th, .pv-body .alert-block td {
+    text-align: left;
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pv-body .alert-block th {
+    color: var(--text-mute);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .pv-body .alert-block td:first-child { color: var(--text-mute); }
+  .pv-body .alert-block td b { color: var(--text); }
+  .pv-body .alert-block tr:last-child th, .pv-body .alert-block tr:last-child td { border-bottom: none; }
+
+  .pv-body pre {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 14px 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .pv-body pre .ts   { color: var(--text-faint); }
+  .pv-body pre .crit { color: var(--crit); font-weight: 600; }
+  .pv-body pre .warn { color: var(--warn); }
+  .pv-body pre .ok   { color: var(--ok); }
+  .pv-body pre .key  { color: var(--info); }
+
+  .pv-body .actions {
+    display: flex;
+    gap: 6px;
+    margin: 18px 0 10px;
+  }
+  .pv-body .actions button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .pv-body .actions button:hover { border-color: var(--border-strong); color: var(--text); }
+  .pv-body .actions button.primary {
+    background: rgba(74,222,128,0.08);
+    border-color: var(--ok-dim);
+    color: var(--ok);
+  }
+  .pv-body .actions button.danger {
+    background: rgba(255,90,60,0.07);
+    border-color: var(--crit-dim);
+    color: var(--crit);
+  }
+
+  .pv-body h3 {
+    font-family: var(--mono);
+    color: var(--text);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pv-body .related {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .pv-body .related .ritem {
+    display: grid;
+    grid-template-columns: 80px 60px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 10px;
+  }
+  .pv-body .related .ritem .when { color: var(--text-mute); letter-spacing: 0.04em; }
+  .pv-body .related .ritem .lvl  { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
+  .pv-body .related .ritem .lvl.crit { color: var(--crit); }
+  .pv-body .related .ritem .lvl.warn { color: var(--warn); }
+  .pv-body .related .ritem .lvl.info { color: var(--info); }
+  .pv-body .related .ritem .lvl.ok   { color: var(--ok); }
+  .pv-body .related .ritem .msg  { color: var(--text-dim); }
+  .pv-body .related .ritem .src  { color: var(--text-faint); font-size: 9px; }
+
+  .pv-body .attachments {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .att {
+    display: grid;
+    grid-template-columns: 28px 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .att .ext {
+    background: var(--panel-3);
+    color: var(--info);
+    font-size: 9px;
+    text-align: center;
+    padding: 3px 0;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .att .nm { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .att .sz { color: var(--text-mute); font-size: 10px; }
+  .att .dl { color: var(--ok); font-size: 10px; letter-spacing: 0.18em; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<main class="nocgrid">
+
+  <!-- ===== HEADER (NOC top reused) ===== -->
+  <header class="header">
+    <div class="glyph">PT</div>
+    <div>
+      <div class="h-title">proxmox-thermals · <em>cluster.mail</em></div>
+      <div class="h-meta"><span class="live">LIVE</span> &nbsp;mbox <b>/var/spool/mail/root</b> · imap <b>localhost:993</b> · last fetch <b>00:14 ago</b></div>
+    </div>
+    <nav class="h-nav">
+      <a href="#">NOC</a>
+      <a href="#">Large</a>
+      <a href="#">Simple</a>
+      <a href="#">Cluster</a>
+      <a href="#" class="is-active">Mail</a>
+    </nav>
+  </header>
+
+  <!-- ===== CLOCK ===== -->
+  <section class="clock">
+    <div class="clock-top">
+      <span class="left">● LIVE</span>
+      <span class="right">
+        <span>W<b id="ck-w"></b></span>
+        <span>DOY<b id="ck-doy"></b></span>
+        <span>Q<b id="ck-q"></b></span>
+        <span>EPOCH <b id="ck-epoch"></b></span>
+      </span>
+    </div>
+    <div class="clock-time">
+      <span id="ck-h">14</span><span class="colon">:</span><span id="ck-m">32</span><span class="secs"><span class="colon">:</span><span id="ck-s">08</span></span>
+    </div>
+    <div class="clock-side">
+      <div class="tz"><small>TZ</small>EUROPE/MADRID</div>
+      <div class="utc"><small>UTC</small><span id="ck-utc">12:32:08</span></div>
+    </div>
+    <div class="clock-bottom">
+      <div class="date"><b id="ck-date">jueves 28 mayo 2026</b><span class="iso" id="ck-iso">2026-05-28</span></div>
+      <div class="upt">cluster uptime <b id="ck-upt">14d 03h 12m 00s</b></div>
+    </div>
+  </section>
+
+  <!-- ===== MAIL COUNTS STRIP ===== -->
+  <section class="counts">
+    <div class="cnt"><span class="cnt-label">Total</span><span class="cnt-val">247</span><span class="cnt-foot">all folders</span></div>
+    <div class="cnt"><span class="cnt-label">Unread</span><span class="cnt-val is-info">14</span><span class="cnt-foot">5 since 00:00</span></div>
+    <div class="cnt"><span class="cnt-label">Critical</span><span class="cnt-val is-crit">3</span><span class="cnt-foot">1 unack</span></div>
+    <div class="cnt"><span class="cnt-label">Warnings</span><span class="cnt-val is-warn">7</span><span class="cnt-foot">2 unack</span></div>
+    <div class="cnt"><span class="cnt-label">Info</span><span class="cnt-val">28</span><span class="cnt-foot">last 24h</span></div>
+    <div class="cnt"><span class="cnt-label">Backups</span><span class="cnt-val is-ok">OK</span><span class="cnt-foot">6/6 last cycle</span></div>
+    <div class="cnt"><span class="cnt-label">Last alert</span><span class="cnt-val">14<small>m</small></span><span class="cnt-foot">nvme1n1 · A</span></div>
+    <div class="cnt"><span class="cnt-label">Quota</span><span class="cnt-val">36<small>%</small></span><span class="cnt-foot">182M / 500M</span></div>
+  </section>
+
+  <!-- ===== MAIL 3-pane ===== -->
+  <section class="mail">
+
+    <!-- LEFT: folders -->
+    <div class="pane">
+      <div class="pane-hd">
+        <span class="lead">Mailboxes</span>
+        <div class="tail"><button class="iconbtn" title="Refresh">↻</button></div>
+      </div>
+
+      <button class="compose-btn">Compose · ⌘N</button>
+
+      <div class="folders">
+        <div class="folder-section">
+          <div class="folder-section-label">System</div>
+          <div class="folder is-active" data-folder="inbox">
+            <span class="ic">▸</span>
+            <span>Inbox</span>
+            <span class="badge is-crit">14</span>
+          </div>
+          <div class="folder" data-folder="alerts">
+            <span class="ic">!</span>
+            <span>Alerts</span>
+            <span class="badge is-crit">3</span>
+          </div>
+          <div class="folder" data-folder="warnings">
+            <span class="ic">⚠</span>
+            <span>Warnings</span>
+            <span class="badge is-warn">7</span>
+          </div>
+          <div class="folder" data-folder="starred">
+            <span class="ic">★</span>
+            <span>Starred</span>
+            <span class="badge">4</span>
+          </div>
+        </div>
+
+        <div class="folder-section">
+          <div class="folder-section-label">Sources</div>
+          <div class="folder" data-folder="backups">
+            <span class="ic">⌥</span>
+            <span>Backups</span>
+            <span class="badge">52</span>
+          </div>
+          <div class="folder" data-folder="cron">
+            <span class="ic">↻</span>
+            <span>Cron</span>
+            <span class="badge">31</span>
+          </div>
+          <div class="folder" data-folder="smart">
+            <span class="ic">◇</span>
+            <span>SMART</span>
+            <span class="badge">12</span>
+          </div>
+          <div class="folder" data-folder="pve">
+            <span class="ic">▾</span>
+            <span>PVE / cluster</span>
+            <span class="badge">19</span>
+          </div>
+          <div class="folder" data-folder="security">
+            <span class="ic">⊕</span>
+            <span>Security</span>
+            <span class="badge is-warn">2</span>
+          </div>
+          <div class="folder" data-folder="reports">
+            <span class="ic">≡</span>
+            <span>Reports</span>
+            <span class="badge">8</span>
+          </div>
+        </div>
+
+        <div class="folder-section">
+          <div class="folder-section-label">Hosts</div>
+          <div class="folder" data-folder="hostA">
+            <span class="ic" style="color:var(--ok)">A</span>
+            <span>proxmox-a</span>
+            <span class="badge">132</span>
+          </div>
+          <div class="folder" data-folder="hostB">
+            <span class="ic" style="color:var(--info)">B</span>
+            <span>proxmox-b</span>
+            <span class="badge">78</span>
+          </div>
+        </div>
+
+        <div class="folder-section">
+          <div class="folder-section-label">Archive</div>
+          <div class="folder" data-folder="sent">
+            <span class="ic">↗</span>
+            <span>Sent</span>
+            <span class="badge">23</span>
+          </div>
+          <div class="folder" data-folder="trash">
+            <span class="ic">×</span>
+            <span>Trash</span>
+            <span class="badge">109</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="acct-summary">
+        <div><span class="ok"></span>connected · IMAP TLS</div>
+        <div>account <b>root@proxmox-a</b></div>
+        <div>fetch interval <b>60s</b></div>
+        <div>quota <b>182M / 500M</b></div>
+      </div>
+    </div>
+
+    <!-- MIDDLE: list -->
+    <div class="pane">
+      <div class="pane-hd">
+        <span class="lead">Inbox <span style="color:var(--text-faint); margin-left:8px;">· 14 unread / 247 total</span></span>
+        <div class="tail">
+          <button class="iconbtn">↓ DATE</button>
+          <button class="iconbtn">⋮</button>
+        </div>
+      </div>
+
+      <div class="list-search">
+        <input type="text" placeholder="search · from:root subject:alert host:proxmox-a after:24h" />
+        <div class="filter-tabs">
+          <button class="is-active">All <span class="count">247</span></button>
+          <button>Unread <span class="count">14</span></button>
+          <button>Crit <span class="count">3</span></button>
+          <button>Warn <span class="count">7</span></button>
+        </div>
+      </div>
+
+      <div class="mail-list" id="mail-list">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- RIGHT: preview -->
+    <div class="pane preview-pane">
+      <div class="pv-toolbar">
+        <div class="tools">
+          <button class="iconbtn">↩ Reply</button>
+          <button class="iconbtn">↪ Forward</button>
+          <button class="iconbtn">★ Star</button>
+          <button class="iconbtn">⌥ Archive</button>
+          <button class="iconbtn">✓ Ack</button>
+          <button class="iconbtn">× Delete</button>
+        </div>
+        <div class="crumb">Inbox · <b>thermal alert · nvme1n1</b> · 1 of 247</div>
+      </div>
+
+      <div class="pv-head">
+        <div class="pv-subj">
+          <span class="tag">CRIT</span>
+          <span>thermal: nvme1n1 internal sensor at 85.0 °C (proxmox-a)</span>
+        </div>
+
+        <dl class="pv-meta">
+          <dt>from</dt>
+          <dd><b>monitord</b> &lt;alerts@proxmox-a&gt;</dd>
+          <dt>to</dt>
+          <dd>root@proxmox-a, <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="86e9f6f5c6e5eaf3f5f2e3f4a8eae7e8">[email&#160;protected]</a></dd>
+          <dt>when</dt>
+          <dd id="pv-when">2026-05-28 14:18:32 CEST &nbsp;·&nbsp; 14 minutes ago</dd>
+          <dt>tags</dt>
+          <dd>
+            <span class="chip">host:proxmox-a</span>
+            <span class="chip">disk:nvme1n1</span>
+            <span class="chip">sensor:nvme_composite</span>
+            <span class="chip">severity:crit</span>
+            <span class="chip">ack:no</span>
+          </dd>
+          <dt>id</dt>
+          <dd style="font-size:10px; color:var(--text-mute)">&lt;alert.20260528-141832.7c4a9d@proxmox-a&gt;</dd>
+        </dl>
+      </div>
+
+      <div class="pv-body">
+        <p>
+          The NVMe device <b style="color:var(--text)">nvme1n1</b> (KINGSTON SKC3000D4096G, serial 50026B7687459253)
+          on host <b style="color:var(--text)">proxmox-a</b> has exceeded its critical thermal threshold of 70.0 °C
+          and has been sustained above that level for more than 5 minutes.
+        </p>
+
+        <div class="alert-block">
+          <h4>Sensor snapshot · 2026-05-28 14:18:32</h4>
+          <table>
+            <tr><th>metric</th><th>value</th><th>limit</th><th>state</th></tr>
+            <tr><td>composite</td><td><b>85.0 °C</b></td><td>70 °C</td><td style="color:var(--crit)">CRIT</td></tr>
+            <tr><td>sensor1 (ctrl)</td><td><b>65.0 °C</b></td><td>70 °C</td><td style="color:var(--warn)">WARN</td></tr>
+            <tr><td>sensor2 (nand)</td><td><b>85.0 °C</b></td><td>70 °C</td><td style="color:var(--crit)">CRIT</td></tr>
+            <tr><td>throttle 1</td><td><b>active</b></td><td>—</td><td style="color:var(--crit)">throttling</td></tr>
+            <tr><td>throttle 2</td><td>inactive</td><td>—</td><td style="color:var(--ok)">ok</td></tr>
+            <tr><td>airflow (chassis intake)</td><td>27.8 °C</td><td>—</td><td style="color:var(--text-dim)">nominal</td></tr>
+          </table>
+        </div>
+
+        <h3>Recent log lines</h3>
+        <pre><span class="ts">14:13:02</span> <span class="key">nvme1</span>: temperature crossed warning threshold (55 °C → 56.2 °C)
+<span class="ts">14:14:48</span> <span class="key">nvme1</span>: <span class="warn">WARN</span> sensor2 climbing fast (+8.4 °C in 90s)
+<span class="ts">14:16:11</span> <span class="key">nvme1</span>: <span class="warn">WARN</span> sensor2 = 72.4 °C, crit threshold reached
+<span class="ts">14:18:32</span> <span class="key">nvme1</span>: <span class="crit">CRIT</span> sensor2 = 85.0 °C, sustained 5m, alert dispatched
+<span class="ts">14:18:32</span> <span class="key">nvme1</span>: thermal throttle 1 engaged (PCIe Gen4 → Gen3 fallback)
+<span class="ts">14:19:01</span> <span class="key">nvme1</span>: I/O latency p95 climbing: 2.1ms → 8.7ms
+<span class="ts">14:21:42</span> <span class="key">nvme1</span>: <span class="crit">CRIT</span> sensor2 = 85.0 °C (held)
+<span class="ts">14:24:18</span> <span class="key">monitord</span>: <span class="ok">notify</span> via mail, page, webhook (3 channels OK)</pre>
+
+        <h3>Recommended actions</h3>
+        <ol style="margin: 0 0 10px 18px; padding: 0;">
+          <li>Verify chassis airflow — check intake fans 1 & 2 RPM in IPMI.</li>
+          <li>Inspect physical NVMe heatsink seating (it shared the issue with nvme0n1 last May).</li>
+          <li>If sustained, migrate hot VMs (104, 202) off proxmox-a to proxmox-b until cooled.</li>
+          <li>Consider scheduled <code>nvme-cli</code> firmware check (current EU0PWFB6, latest EU0PWGAA).</li>
+        </ol>
+
+        <div class="actions">
+          <button class="primary">✓ Acknowledge</button>
+          <button>↩ Reply to ops</button>
+          <button>⤳ Open in NOC</button>
+          <button>Snooze 1h</button>
+          <button>Mute disk for 24h</button>
+          <button class="danger">Page on-call</button>
+        </div>
+
+        <h3>Related alerts (last 7 days · same disk)</h3>
+        <div class="related">
+          <div class="ritem">
+            <span class="when">14m ago</span>
+            <span class="lvl crit">CRIT</span>
+            <span class="msg">sensor2 sustained 85.0 °C &gt; 5min (current)</span>
+            <span class="src">monitord</span>
+          </div>
+          <div class="ritem">
+            <span class="when">3h ago</span>
+            <span class="lvl warn">WARN</span>
+            <span class="msg">sensor2 crossed 55 °C, returned within 12 min</span>
+            <span class="src">monitord</span>
+          </div>
+          <div class="ritem">
+            <span class="when">22h ago</span>
+            <span class="lvl warn">WARN</span>
+            <span class="msg">composite spiked 71 °C during VM 202 backup window</span>
+            <span class="src">monitord</span>
+          </div>
+          <div class="ritem">
+            <span class="when">2d ago</span>
+            <span class="lvl info">INFO</span>
+            <span class="msg">SMART self-test short · completed without error</span>
+            <span class="src">smartd</span>
+          </div>
+          <div class="ritem">
+            <span class="when">5d ago</span>
+            <span class="lvl ok">OK</span>
+            <span class="msg">thermal profile reset after firmware reseat</span>
+            <span class="src">manual</span>
+          </div>
+        </div>
+
+        <h3>Attachments</h3>
+        <div class="attachments">
+          <div class="att">
+            <span class="ext">CSV</span>
+            <span class="nm">nvme1n1-thermal-window.csv</span>
+            <span class="sz">42.8 KB · 5min · 30s resolution</span>
+            <span class="dl">↓ DOWNLOAD</span>
+          </div>
+          <div class="att">
+            <span class="ext">LOG</span>
+            <span class="nm">monitord-2026-05-28.log</span>
+            <span class="sz">1.2 MB · last 6h · gz</span>
+            <span class="dl">↓ DOWNLOAD</span>
+          </div>
+          <div class="att">
+            <span class="ext">PNG</span>
+            <span class="nm">history-nvme1n1-24h.png</span>
+            <span class="sz">182 KB · 1920×400</span>
+            <span class="dl">↓ DOWNLOAD</span>
+          </div>
+        </div>
+
+        <p style="font-size:10px; color:var(--text-faint); margin-top:22px; padding-top:10px; border-top:1px solid var(--border);">
+          —<br>
+          This message was generated automatically by <b>monitord v0.4.1</b> on proxmox-a<br>
+          To stop receiving alerts for this disk, run <code style="color:var(--text-mute);">pt-cli mute disk:nvme1n1 --duration 24h</code><br>
+          Mailing list: <span style="color:var(--text-mute)"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e887989ba88b849d9b9c8d9ac6848986">[email&#160;protected]</a></span> · unsubscribe via <code style="color:var(--text-mute)">pt-cli mail unsubscribe ops</code>
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* ============== mock data ============== */
+const MAILS = [
+  { id:1, lvl:"crit", unread:true,  star:true,  host:"A", from:"monitord",          fromAddr:"alerts@proxmox-a", subj:"thermal: nvme1n1 internal sensor at 85.0 °C", tag:"CRIT", when:"14:18", whenRel:"14m", preview:"sensor2 sustained 85.0 °C >5min, throttle engaged · PCIe gen4→gen3 fallback…", att:3 },
+  { id:2, lvl:"warn", unread:true,  star:false, host:"A", from:"monitord",          fromAddr:"alerts@proxmox-a", subj:"memory: RAM utilization 77.6% on proxmox-a", tag:"WARN", when:"12:42", whenRel:"2h",  preview:"investigate VM 202, last 6h trend +12pp, top-talkers attached…", att:1 },
+  { id:3, lvl:"info", unread:false, star:false, host:"A", from:"pve-backup",        fromAddr:"backup@proxmox-a", subj:"backup completed · 6 VMs · 12.4 GB → backups-nfs", tag:"INFO", when:"10:14", whenRel:"4h",  preview:"vm-104 ok 1.2G · vm-111 ok 2.8G · vm-202 ok 4.4G · vm-203 ok 1.1G · vm-208 …", att:1 },
+  { id:4, lvl:"ok",   unread:false, star:false, host:"A", from:"cron",              fromAddr:"cron@proxmox-a",   subj:"cron.daily · zfs-scrub completed on proxmox-a", tag:"OK",   when:"08:02", whenRel:"6h",  preview:"3.6 TB scrubbed, no errors, 4h 12m wallclock · next run 2026-06-04…", att:0 },
+  { id:5, lvl:"info", unread:true,  star:false, host:"A", from:"monitord",          fromAddr:"alerts@proxmox-a", subj:"backups-nfs above 70% · prune scheduled 02:14", tag:"INFO", when:"10:00", whenRel:"4h",  preview:"current usage 72.4%, retention policy: keep weekly 4, monthly 6…", att:0 },
+  { id:6, lvl:"info", unread:false, star:true,  host:"–", from:"reporter",          fromAddr:"reports@cluster",  subj:"weekly cluster report · 2026-W21", tag:"REPORT", when:"05-27 09:00", whenRel:"1d",  preview:"thermals nominal · 99.97% uptime · 1 reboot (planned) · top alerts: nvme…", att:2 },
+  { id:7, lvl:"warn", unread:true,  star:false, host:"A", from:"smartd",            fromAddr:"smartd@proxmox-a", subj:"SMART: J2 / sdf · reallocated_sector_ct 4 → 7", tag:"WARN", when:"05-27 14:22", whenRel:"1d",  preview:"Samsung SSD 750 EVO · POH 48200 · within RMA window, recommend backup…", att:1 },
+  { id:8, lvl:"warn", unread:false, star:false, host:"–", from:"acme",              fromAddr:"acme@cluster",     subj:"pve-ssl.pem expires in 14 days · renew", tag:"WARN", when:"05-26 23:11", whenRel:"2d",  preview:"current expiry 2026-06-11 · acme.sh autorenew failed (DNS timeout), retry sched…", att:0 },
+  { id:9, lvl:"crit", unread:false, star:true,  host:"B", from:"kernel",            fromAddr:"kernel@proxmox-b", subj:"auto-reboot recovered on proxmox-b after MCE", tag:"CRIT", when:"05-25 04:12", whenRel:"3d",  preview:"machine check exception, core 7, bank 4 · auto-reboot 04:12:18, services up…", att:1 },
+  {id:10, lvl:"ok",   unread:false, star:false, host:"A", from:"pve-backup",        fromAddr:"backup@proxmox-a", subj:"retention prune · removed 8 snapshots (88.2G freed)", tag:"OK", when:"05-25 02:14", whenRel:"3d",  preview:"backups-nfs retention applied: vm-104 kept 4w/6m, vm-202 kept 2w/3m…", att:0 },
+  {id:11, lvl:"info", unread:false, star:false, host:"B", from:"pveproxy",          fromAddr:"pve@cluster",      subj:"cluster join · proxmox-b reconnected after 2.1s", tag:"INFO", when:"05-23 11:08", whenRel:"5d",  preview:"corosync membership restored, no quorum loss · transient network blip on bond0…", att:0 },
+  {id:12, lvl:"info", unread:false, star:false, host:"A", from:"firmware-watch",    fromAddr:"fw@cluster",       subj:"firmware update · KINGSTON SKC3000D EU0PWGAA available", tag:"INFO", when:"05-23 09:00", whenRel:"5d",  preview:"current EU0PWFB6 · release notes mention thermal sensor calibration fix (rel)…", att:1 },
+];
+
+function levelTag(lvl) { return lvl.toUpperCase(); }
+function lvlClass(lvl) { return "is-" + lvl; }
+
+function renderList() {
+  const list = document.getElementById("mail-list");
+  list.innerHTML = MAILS.map((m, i) => `
+    <div class="mitem ${m.unread ? 'is-unread' : ''} ${i === 0 ? 'is-selected' : ''}" data-lvl="${m.lvl}" data-id="${m.id}">
+      <span class="lvl-bar"></span>
+      <span class="dot"></span>
+      <div class="meta">
+        <div class="meta-row1">
+          <span class="from">${m.from} &lt;${m.fromAddr}&gt;</span>
+          <span class="when">${m.when}</span>
+        </div>
+        <div class="subj">
+          <span class="tag ${lvlClass(m.lvl)}">${m.tag}</span>${m.subj}
+        </div>
+        <div class="preview">${m.preview}</div>
+      </div>
+      <div class="right-meta">
+        <span class="host">${m.host === "–" ? "cluster" : "host " + m.host}</span>
+        ${m.att ? `<span class="attach" title="${m.att} attachments">⌘ ${m.att}</span>` : "<span></span>"}
+        <span class="star ${m.star ? 'is-on' : ''}">★</span>
+      </div>
+    </div>
+  `).join("");
+
+  // click handler — visual selection only
+  list.querySelectorAll(".mitem").forEach(el => {
+    el.addEventListener("click", () => {
+      list.querySelectorAll(".mitem").forEach(x => x.classList.remove("is-selected"));
+      el.classList.add("is-selected");
+      el.classList.remove("is-unread");
+    });
+  });
+}
+
+/* ============== clock (same as NOC) ============== */
+const MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const WEEKDAYS_ES = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+function pad(n) { return String(n).padStart(2, "0"); }
+function isoWeek(d) {
+  const dd = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dn = dd.getUTCDay() || 7;
+  dd.setUTCDate(dd.getUTCDate() + 4 - dn);
+  const ys = new Date(Date.UTC(dd.getUTCFullYear(), 0, 1));
+  return Math.ceil((((dd - ys) / 86400000) + 1) / 7);
+}
+function doy(d) { const s = new Date(d.getFullYear(), 0, 0); return Math.floor((d - s) / 86400000); }
+function tickClock() {
+  const n = new Date();
+  document.getElementById("ck-h").textContent = pad(n.getHours());
+  document.getElementById("ck-m").textContent = pad(n.getMinutes());
+  document.getElementById("ck-s").textContent = pad(n.getSeconds());
+  document.getElementById("ck-utc").textContent = pad(n.getUTCHours()) + ":" + pad(n.getUTCMinutes()) + ":" + pad(n.getUTCSeconds());
+  document.getElementById("ck-date").textContent = `${WEEKDAYS_ES[n.getDay()]} ${n.getDate()} ${MONTHS_ES[n.getMonth()]} ${n.getFullYear()}`;
+  document.getElementById("ck-iso").textContent  = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}T${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  document.getElementById("ck-w").textContent    = pad(isoWeek(n));
+  document.getElementById("ck-doy").textContent  = pad(doy(n));
+  document.getElementById("ck-q").textContent    = Math.ceil((n.getMonth()+1)/3);
+  document.getElementById("ck-epoch").textContent = Math.floor(n.getTime()/1000);
+}
+function tickUptime() {
+  const bootDelta = (14*24 + 3) * 3600 * 1000 + 12 * 60 * 1000;
+  const start = Date.now() - bootDelta;
+  setInterval(() => {
+    const diff = Date.now() - start;
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById("ck-upt").textContent = `${d}d ${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+  }, 1000);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  tickClock(); setInterval(tickClock, 1000); tickUptime();
+  renderList();
+});
+</script>
+
+</body>
+</html>
