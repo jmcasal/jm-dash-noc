@@ -6,8 +6,8 @@
 - [x] Nombrar proyecto como `dash-noc`.
 - [x] Separar memoria IA en `.ai` y documentacion en `docs`.
 - [ ] Definir resolucion/orientacion real del Lenovo Tab 8.
-- [ ] Crear preview `tablet-noc` basada en `03-noc.html`.
-- [ ] Eliminar de la preview metricas no reales o marcarlas como futuras.
+- [x] Crear preview `tablet-noc` basada en `03-noc.html`.
+- [x] Eliminar de la preview metricas no reales o marcarlas como futuras.
 
 ## Next
 
@@ -34,4 +34,3 @@
 - Fuente real de emails/notificaciones en `JM22W11`.
 - Si el dashboard sera accesible solo en LAN o tambien via VPN.
 - Si necesita autenticacion o basta restriccion de red.
-
