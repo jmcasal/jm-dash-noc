@@ -198,6 +198,9 @@
     display: grid;
     grid-template-rows: auto 1fr auto;
     position: relative;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
   }
 
   .clock::before {
@@ -719,6 +722,49 @@
     font-size: 9px;
   }
 
+  .screen.is-clock-focus {
+    width: min(100vw, 1280px);
+    height: min(100dvh, 800px);
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "clock";
+    padding: 10px;
+  }
+
+  .screen.is-clock-focus > :not(.clock) {
+    display: none;
+  }
+
+  .screen.is-clock-focus .clock {
+    min-height: 0;
+    height: 100%;
+    padding: clamp(16px, 4vw, 42px);
+    border-radius: 8px;
+  }
+
+  .screen.is-clock-focus .clock-top {
+    font-size: clamp(11px, 1.8vw, 18px);
+    letter-spacing: 0.22em;
+  }
+
+  .screen.is-clock-focus .clock-time {
+    justify-content: center;
+    font-size: clamp(86px, 19vw, 236px);
+  }
+
+  .screen.is-clock-focus .clock-time .secs {
+    margin-left: clamp(8px, 1.3vw, 18px);
+    font-size: clamp(34px, 7vw, 92px);
+  }
+
+  .screen.is-clock-focus .clock-bottom {
+    font-size: clamp(12px, 2vw, 22px);
+  }
+
+  .screen.is-clock-focus .clock-bottom b {
+    font-size: clamp(14px, 2.3vw, 28px);
+  }
+
   @media (max-width: 900px) {
     .screen {
       width: 100%;
@@ -817,6 +863,22 @@
       gap: 6px;
       padding: 5px 6px;
     }
+    .screen.is-clock-focus {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+      grid-template-areas: "clock";
+      padding: 7px;
+    }
+    .screen.is-clock-focus .clock {
+      min-height: 0;
+      padding: clamp(14px, 4vw, 28px);
+    }
+    .screen.is-clock-focus .clock-time {
+      font-size: clamp(82px, 19vw, 150px);
+    }
+    .screen.is-clock-focus .clock-time .secs {
+      font-size: clamp(32px, 7vw, 56px);
+    }
   }
 
   @media (max-width: 620px) {
@@ -835,6 +897,9 @@
     .summary { grid-template-columns: repeat(2, 1fr); }
     .main,
     .side { grid-template-rows: auto; }
+    .screen.is-clock-focus {
+      height: 100dvh;
+    }
   }
 </style>
 </head>
@@ -992,6 +1057,20 @@ function tickClock() {
   document.getElementById("ck-dow").textContent = `D${dayOfYear(now)} W${pad(isoWeek(now))}`;
 }
 
+function setupClockFocus() {
+  const screen = document.querySelector(".screen");
+  const clock = document.querySelector(".clock");
+  if (!screen || !clock) return;
+
+  clock.addEventListener("click", () => {
+    screen.classList.toggle("is-clock-focus");
+  });
+
+  if (new URLSearchParams(window.location.search).get("clock") === "1") {
+    screen.classList.add("is-clock-focus");
+  }
+}
+
 function getPath(payload, path) {
   return path.split(".").reduce((value, key) => value && value[key], payload);
 }
@@ -1131,6 +1210,7 @@ async function refreshNoc() {
 
 tickClock();
 setInterval(tickClock, 1000);
+setupClockFocus();
 refreshNoc();
 setInterval(refreshNoc, 30000);
 </script>
